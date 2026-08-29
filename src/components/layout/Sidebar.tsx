@@ -53,7 +53,12 @@ export function Sidebar({
   isMobileOpen,
   onCloseMobile,
 }: SidebarProps) {
-  const isNavActive = (id: string) => currentRoute === id;
+  const isNavActive = (id: string) => {
+    if (id === "dashboard") return currentRoute === "dashboard";
+    if (id === "projects") return currentRoute === "projects" || currentRoute.startsWith("projects/");
+    if (id === "settings") return currentRoute === "settings";
+    return currentRoute === id;
+  };
 
   const renderNavLinks = (items: NavItem[]) => (
     <ul className="space-y-1">

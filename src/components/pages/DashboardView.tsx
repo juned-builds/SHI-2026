@@ -11,20 +11,18 @@ export interface DashboardViewProps {
 }
 
 export function DashboardView({ onNavigate }: DashboardViewProps) {
-  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
-
   return (
     <PageContainer>
       {/* Welcome Header */}
       <PageHeader
         title="Dashboard"
         description="Transform multimodal source content into multiple structured deliverables."
-        badge="Module 0.2"
+        badge="Module 0.3A"
         action={
           <Button
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowNewProjectModal(true)}
+            onClick={() => onNavigate("projects/new")}
           >
             New Project
           </Button>
@@ -53,7 +51,7 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
                 variant="secondary"
                 size="md"
                 icon={<Plus className="w-4 h-4 text-slate-900" />}
-                onClick={() => setShowNewProjectModal(true)}
+                onClick={() => onNavigate("projects/new")}
                 className="bg-white text-slate-900 hover:bg-slate-100 shadow-md font-semibold"
               >
                 Create First Project
@@ -101,46 +99,11 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
             primaryAction={{
               label: "New Project",
               icon: <Plus className="w-4 h-4" />,
-              onClick: () => setShowNewProjectModal(true),
+              onClick: () => onNavigate("projects/new"),
             }}
           />
         </Card>
       </section>
-
-      {/* Simple Placeholder Dialog for New Project */}
-      {showNewProjectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">Create New Project</h3>
-              <button
-                type="button"
-                onClick={() => setShowNewProjectModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-semibold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Project creation and multimodal ingestion will be unlocked in <strong>Module 0.3</strong>.
-            </p>
-            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
-              <p className="font-semibold text-slate-900">Upcoming Ingestion Engine:</p>
-              <p>• Plain Text & Markdown</p>
-              <p>• PDF & DOCX Document Parser</p>
-              <p>• Image & Diagram Understanding</p>
-            </div>
-            <div className="flex justify-end pt-2">
-              <Button
-                variant="primary"
-                onClick={() => setShowNewProjectModal(false)}
-              >
-                Got It
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageContainer>
   );
 }

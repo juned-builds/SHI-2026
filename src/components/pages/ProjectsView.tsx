@@ -13,7 +13,6 @@ export interface ProjectsViewProps {
 
 export function ProjectsView({ onNavigate }: ProjectsViewProps) {
   const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("all");
-  const [showModal, setShowModal] = useState(false);
 
   return (
     <PageContainer>
@@ -26,7 +25,7 @@ export function ProjectsView({ onNavigate }: ProjectsViewProps) {
           <Button
             variant="primary"
             icon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowModal(true)}
+            onClick={() => onNavigate("projects/new")}
           >
             New Project
           </Button>
@@ -91,36 +90,10 @@ export function ProjectsView({ onNavigate }: ProjectsViewProps) {
           primaryAction={{
             label: "Create Project",
             icon: <Plus className="w-4 h-4" />,
-            onClick: () => setShowModal(true),
+            onClick: () => onNavigate("projects/new"),
           }}
         />
       </Card>
-
-      {/* Modal Dialog */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-bold text-slate-900">New Transformation Project</h3>
-              <button
-                type="button"
-                onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-semibold cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-sm text-slate-600 leading-relaxed">
-              Project creation and ingestion pipelines will be enabled in <strong>Module 0.3</strong>.
-            </p>
-            <div className="flex justify-end pt-2">
-              <Button variant="primary" onClick={() => setShowModal(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </PageContainer>
   );
 }
