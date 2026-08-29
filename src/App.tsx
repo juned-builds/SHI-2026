@@ -34,7 +34,7 @@ export default function App() {
           { label: "Workspace", id: "dashboard" },
           { label: "Projects", id: "projects" },
           { label: "New Project", id: "projects/new" },
-          { label: "Configure" },
+          { label: "Source Ready" },
         ];
       case "settings":
         return [
@@ -55,9 +55,9 @@ export default function App() {
       case "projects":
         return "Projects";
       case "projects/new":
-        return "Create Transformation";
+        return "Create Transformation Project";
       case "projects/new/configure":
-        return "Configure Transformation";
+        return "Source Ready";
       case "settings":
         return "Settings";
       case "dashboard":
@@ -71,30 +71,43 @@ export default function App() {
     setCurrentRoute("projects/new/configure");
   };
 
+  const handleCancelProject = () => {
+    setProjectDraft(null);
+    setCurrentRoute("projects");
+  };
+
+  const handleNavigate = (route: string) => {
+    // If navigating to /projects/new directly (e.g. from sidebar or dashboard CTA),
+    // allow fresh project draft or maintain existing if already in progress
+    setCurrentRoute(route);
+  };
+
   return (
     <AppShell
       title={getTitle()}
       breadcrumbs={getBreadcrumbs()}
       currentRoute={currentRoute}
-      onNavigate={setCurrentRoute}
+      onNavigate={handleNavigate}
     >
       {currentRoute === "dashboard" && (
-        <DashboardView onNavigate={setCurrentRoute} />
+        <DashboardView onNavigate={handleNavigate} />
       )}
       {currentRoute === "projects" && (
-        <ProjectsView onNavigate={setCurrentRoute} />
+        <ProjectsView onNavigate={handleNavigate} />
       )}
       {currentRoute === "projects/new" && (
         <NewProjectView
           initialDraft={projectDraft || undefined}
           onContinue={handleContinueToConfigure}
-          onNavigate={setCurrentRoute}
+          onNavigate={handleNavigate}
+          onCancel={handleCancelProject}
         />
       )}
       {currentRoute === "projects/new/configure" && (
         <ConfigurePlaceholderView
           draft={projectDraft}
-          onNavigate={setCurrentRoute}
+          onNavigate={handleNavigate}
+          onCancel={handleCancelProject}
         />
       )}
       {currentRoute === "settings" && <SettingsView />}

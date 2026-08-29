@@ -29,7 +29,9 @@ export function SourceInputWorkspace({
   const [projectName, setProjectName] = useState<string>(
     initialDraft?.name || "Untitled transformation"
   );
-  const [activeTab, setActiveTab] = useState<"file" | "text">("file");
+  const [activeTab, setActiveTab] = useState<"file" | "text">(
+    initialDraft?.sourceType === "text" ? "text" : "file"
+  );
   const [selectedFile, setSelectedFile] = useState<SourceFileMetadata | null>(
     initialDraft?.sourceFile || null
   );
@@ -40,8 +42,11 @@ export function SourceInputWorkspace({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const hasFile = selectedFile !== null;
-  const hasText = sourceText.trim().length > 0;
-  const isSourceValid = hasFile || hasText;
+  const trimmedText = sourceText.trim();
+  const hasText = trimmedText.length > 0;
+
+  // Active validation strictly checks the currently active tab mode
+  const isActiveSourceValid = activeTab === "file" ? hasFile : hasText;
 
   const handleFileSelected = (fileMeta: SourceFileMetadata) => {
     setSelectedFile(fileMeta);
@@ -56,40 +61,58 @@ export function SourceInputWorkspace({
 
   const handleTextChange = (text: string) => {
     setSourceText(text);
-    if (validationError && (text.trim().length > 0 || hasFile)) {
+    if (validationError && text.trim().length > 0) {
       setValidationError(null);
     }
+  };
+
+  const handleTabSwitch = (newTab: "file" | "text") => {
+    setActiveTab(newTab);
+    setValidationError(null);
   };
 
   const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check project name
     const finalName = projectName.trim() || "Untitled transformation";
 
-    // Validate that either a valid file or non-whitespace text is provided
-    if (!isSourceValid) {
-      setValidationError(
-        "Please provide a source input. You can either upload a document/media file or paste raw text into the editor."
-      );
-      return;
-    }
+    if (activeTab === "file") {
+      if (!selectedFile) {
+        setValidationError(
+          "Please select a valid document or media file to continue, or switch to the Paste Text tab."
+        );
+        return;
+      }
 
-    let determinedType: SourceType = "text";
-    if (hasFile && hasText) {
-      determinedType = activeTab === "file" ? "file" : "text";
-    } else if (hasFile) {
-      determinedType = "file";
+      onContinue({
+        name: finalName,
+        sourceType: "file",
+        sourceFile: selectedFile,
+        sourceText: "",
+        charCount: 0,
+        wordCount: 0,
+        isReady: true,
+      });
     } else {
-      determinedType = "text";
-    }
+      if (!hasText) {
+        setValidationError(
+          "Please enter or paste your source text to continue, or switch to the Upload File tab."
+        );
+        return;
+      }
 
-    onContinue({
-      name: finalName,
-      sourceType: determinedType,
-      sourceFile: selectedFile,
-      sourceText: sourceText.trim(),
-    });
+      const wordCount = trimmedText.split(/\s+/).length;
+
+      onContinue({
+        name: finalName,
+        sourceType: "text",
+        sourceFile: null,
+        sourceText: trimmedText,
+        charCount: trimmedText.length,
+        wordCount,
+        isReady: true,
+      });
+    }
   };
 
   return (
@@ -151,7 +174,7 @@ export function SourceInputWorkspace({
             <div className="flex items-center p-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-medium text-slate-600">
               <button
                 type="button"
-                onClick={() => setActiveTab("file")}
+                onClick={() => handleTabSwitch("file")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
                   activeTab === "file"
                     ? "bg-white text-slate-900 shadow-xs font-semibold"
@@ -161,12 +184,12 @@ export function SourceInputWorkspace({
                 <Upload className="w-3.5 h-3.5" />
                 <span>Upload File</span>
                 {hasFile && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="File selected" />
                 )}
               </button>
               <button
                 type="button"
-                onClick={() => setActiveTab("text")}
+                onClick={() => handleTabSwitch("text")}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
                   activeTab === "text"
                     ? "bg-white text-slate-900 shadow-xs font-semibold"
@@ -176,13 +199,15 @@ export function SourceInputWorkspace({
                 <FileText className="w-3.5 h-3.5" />
                 <span>Paste Text</span>
                 {hasText && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="Text entered" />
                 )}
               </button>
             </div>
           </div>
           <CardDescription>
-            Provide the source document or text you wish to transform into structured deliverables.
+            {activeTab === "file"
+              ? "Select a document, image, or video file to transform."
+              : "Paste raw text, articles, or notes to transform."}
           </CardDescription>
         </CardHeader>
 
@@ -215,16 +240,45 @@ export function SourceInputWorkspace({
             <SourceTextInput
               value={sourceText}
               onChange={handleTextChange}
-              onClear={() => setSourceText("")}
+              onClear={() => {
+                setSourceText("");
+                setValidationError(null);
+              }}
             />
           )}
 
-          {/* Quick Dual-Source Status info if user provided both */}
+          {/* Informative notice if user switched tabs and has inactive content */}
+          {activeTab === "file" && hasText && !hasFile && (
+            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <span>You have text entered in the <strong>Paste Text</strong> tab.</span>
+              <button
+                type="button"
+                onClick={() => handleTabSwitch("text")}
+                className="text-slate-900 font-semibold hover:underline cursor-pointer ml-2"
+              >
+                Switch to Text
+              </button>
+            </div>
+          )}
+
+          {activeTab === "text" && hasFile && !hasText && (
+            <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
+              <span>You have a file selected in the <strong>Upload File</strong> tab ({selectedFile?.name}).</span>
+              <button
+                type="button"
+                onClick={() => handleTabSwitch("file")}
+                className="text-slate-900 font-semibold hover:underline cursor-pointer ml-2"
+              >
+                Switch to File
+              </button>
+            </div>
+          )}
+
           {hasFile && hasText && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50/60 border border-blue-200/80 rounded-lg text-xs text-blue-800">
+            <div className="flex items-center gap-2 p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-800">
               <Layers className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                Both a source file (<strong>{selectedFile?.name}</strong>) and pasted text are present. The currently selected tab (<strong>{activeTab === "file" ? "Upload File" : "Paste Text"}</strong>) will be treated as the active transformation source.
+                Active Source Mode: <strong>{activeTab === "file" ? "File Upload" : "Pasted Text"}</strong>. Only the active mode's content will be used.
               </span>
             </div>
           )}
@@ -253,7 +307,7 @@ export function SourceInputWorkspace({
           <Button
             type="submit"
             variant="primary"
-            disabled={!isSourceValid}
+            disabled={!isActiveSourceValid}
             icon={<ArrowRight className="w-4 h-4" />}
             className="w-full sm:w-auto"
           >

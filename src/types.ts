@@ -1,4 +1,4 @@
-export type SourceType = "file" | "text" | null;
+export type SourceType = "file" | "text";
 
 export type FileCategory = "pdf" | "docx" | "text" | "image" | "video" | "other";
 
@@ -16,4 +16,7 @@ export interface ProjectDraft {
   sourceType: SourceType;
   sourceFile: SourceFileMetadata | null;
   sourceText: string;
+  charCount: number;
+  wordCount: number;
+  isReady: boolean;
 }

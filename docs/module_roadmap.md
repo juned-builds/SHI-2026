@@ -9,8 +9,8 @@
 | Module | Scope | Status |
 |---|---|---|
 | **Module 0.1** | **Portable Project Foundation** (Next.js frontend, FastAPI backend, health check, repository architecture) | **Completed** |
-| **Module 0.2** | Core UI Shell & Navigation Architecture | Planned |
-| **Module 0.3** | Content Ingestion & Document Parser Foundation | Planned |
+| **Module 0.2** | Core UI Shell & Navigation Architecture | **Completed** |
+| **Module 0.3** | Content Ingestion & Document Parser Foundation (Source Input & Summary Workflow) | **Completed** |
 | **Module 0.4** | Gemini GenAI Integration & Prompt Engineering Layer | Planned |
 | **Module 0.5** | Transformation Pipeline (Summaries, Social Posts, Advisories) | Planned |
 | **Module 0.6** | Presentation & Visual Deliverable Engine | Planned |

@@ -10,13 +10,23 @@ export interface NewProjectViewProps {
   initialDraft?: Partial<ProjectDraft>;
   onContinue: (draft: ProjectDraft) => void;
   onNavigate: (route: string) => void;
+  onCancel?: () => void;
 }
 
 export function NewProjectView({
   initialDraft,
   onContinue,
   onNavigate,
+  onCancel,
 }: NewProjectViewProps) {
+  const handleBackOrCancel = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      onNavigate("projects");
+    }
+  };
+
   return (
     <PageContainer maxWidth="narrow">
       {/* Top back button navigation */}
@@ -25,7 +35,7 @@ export function NewProjectView({
           variant="ghost"
           size="sm"
           icon={<ArrowLeft className="w-4 h-4" />}
-          onClick={() => onNavigate("projects")}
+          onClick={handleBackOrCancel}
           className="text-slate-500 hover:text-slate-900 -ml-2"
         >
           Back to Projects
@@ -43,7 +53,7 @@ export function NewProjectView({
       <SourceInputWorkspace
         initialDraft={initialDraft}
         onContinue={onContinue}
-        onCancel={() => onNavigate("projects")}
+        onCancel={handleBackOrCancel}
       />
     </PageContainer>
   );
