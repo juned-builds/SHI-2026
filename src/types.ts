@@ -106,3 +106,44 @@ export interface TransformationSession {
   draft: ProjectDraft;
   config: TransformationConfig;
 }
+
+export type GenerationStatus =
+  | "idle"
+  | "validating"
+  | "preparing"
+  | "generating"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type PipelineStageStatus = "pending" | "in_progress" | "completed" | "failed";
+
+export interface PipelineStage {
+  id: string;
+  title: string;
+  description: string;
+  status: PipelineStageStatus;
+  detail?: string;
+}
+
+export interface DeliverablePipelineItem {
+  deliverableId: DeliverableId;
+  name: string;
+  description: string;
+  category: string;
+  status: "queued" | "preparing" | "ready" | "failed";
+  promptSchemaReady: boolean;
+}
+
+export interface GenerationSession {
+  sessionId: string;
+  createdAt: string;
+  draft: ProjectDraft;
+  config: TransformationConfig;
+  status: GenerationStatus;
+  currentStageIndex: number;
+  stages: PipelineStage[];
+  deliverablesPipeline: DeliverablePipelineItem[];
+  preparedAt?: string;
+  error?: string | null;
+}

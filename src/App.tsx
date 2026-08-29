@@ -10,14 +10,16 @@ import { ProjectsView } from "./components/pages/ProjectsView";
 import { SettingsView } from "./components/pages/SettingsView";
 import { NewProjectView } from "./components/pages/NewProjectView";
 import { ConfigureView } from "./components/pages/ConfigureView";
-import { GenerationPlaceholderView } from "./components/pages/GenerationPlaceholderView";
-import { ProjectDraft, TransformationConfig } from "./types";
+import { GenerationWorkspaceView } from "./components/pages/GenerationWorkspaceView";
+import { ProjectDraft, TransformationConfig, GenerationSession } from "./types";
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<string>("dashboard");
   const [projectDraft, setProjectDraft] = useState<ProjectDraft | null>(null);
   const [transformationConfig, setTransformationConfig] =
     useState<TransformationConfig | null>(null);
+  const [generationSession, setGenerationSession] =
+    useState<GenerationSession | null>(null);
 
   const getBreadcrumbs = () => {
     switch (currentRoute) {
@@ -45,7 +47,7 @@ export default function App() {
           { label: "Projects", id: "projects" },
           { label: "New Project", id: "projects/new" },
           { label: "Configure", id: "projects/new/configure" },
-          { label: "Generate" },
+          { label: "Generation Workspace" },
         ];
       case "settings":
         return [
@@ -70,7 +72,7 @@ export default function App() {
       case "projects/new/configure":
         return "Configure Transformation";
       case "projects/generate":
-        return "Ready to Generate";
+        return "Generation Workspace";
       case "settings":
         return "Settings";
       case "dashboard":
@@ -92,6 +94,7 @@ export default function App() {
   const handleCancelProject = () => {
     setProjectDraft(null);
     setTransformationConfig(null);
+    setGenerationSession(null);
     setCurrentRoute("projects");
   };
 
@@ -130,9 +133,11 @@ export default function App() {
         />
       )}
       {currentRoute === "projects/generate" && (
-        <GenerationPlaceholderView
+        <GenerationWorkspaceView
           draft={projectDraft}
           config={transformationConfig}
+          session={generationSession}
+          onUpdateSession={setGenerationSession}
           onNavigate={handleNavigate}
           onCancel={handleCancelProject}
         />
@@ -141,4 +146,5 @@ export default function App() {
     </AppShell>
   );
 }
+
 
