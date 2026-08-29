@@ -1,0 +1,144 @@
+"use client";
+
+import React, { useState } from "react";
+import { Plus, Sparkles, FolderKanban, ArrowRight, Layers, FileText, Share2, Presentation } from "lucide-react";
+import { PageContainer } from "@/components/layout/page-container";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+
+export default function DashboardPage() {
+  const [showNewProjectModal, setShowNewProjectModal] = useState(false);
+
+  return (
+    <PageContainer>
+      {/* Welcome Header */}
+      <PageHeader
+        title="Dashboard"
+        description="Transform multimodal source content into multiple structured deliverables."
+        badge="Module 0.2"
+        action={
+          <Button
+            variant="primary"
+            icon={<Plus className="w-4 h-4" />}
+            onClick={() => setShowNewProjectModal(true)}
+          >
+            New Project
+          </Button>
+        }
+      />
+
+      {/* Conceptual Transformation Workflow Blueprint */}
+      <Card className="mb-8 bg-linear-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-0">
+        <CardContent className="p-6 sm:p-8">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2 max-w-lg">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white/90 text-xs font-medium backdrop-blur-xs">
+                <Sparkles className="w-3.5 h-3.5 text-blue-300" />
+                <span>Transformation Pipeline</span>
+              </div>
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Transform your next piece of content
+              </h2>
+              <p className="text-sm text-slate-300 leading-relaxed">
+                One source input parsed and transformed into executive summaries, social posts, presentation decks, and video production packages.
+              </p>
+            </div>
+
+            <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <Button
+                variant="secondary"
+                size="md"
+                icon={<Plus className="w-4 h-4 text-slate-900" />}
+                onClick={() => setShowNewProjectModal(true)}
+                className="bg-white text-slate-900 hover:bg-slate-100 shadow-md font-semibold"
+              >
+                Create First Project
+              </Button>
+            </div>
+          </div>
+
+          {/* Workflow Step Indicators */}
+          <div className="mt-8 pt-6 border-t border-white/10 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs text-slate-300">
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center font-bold text-[10px] text-white">1</span>
+              <span>Input Source</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center font-bold text-[10px] text-white">2</span>
+              <span>Understanding</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center font-bold text-[10px] text-white">3</span>
+              <span>Configuration</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center font-bold text-[10px] text-white">4</span>
+              <span>Deliverables</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Recent Projects Section */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">
+            Recent Projects
+          </h2>
+          <span className="text-xs text-slate-500 font-medium">0 active</span>
+        </div>
+
+        {/* Clean Empty State */}
+        <Card>
+          <EmptyState
+            icon={<FolderKanban className="w-6 h-6" />}
+            title="No projects yet"
+            description="Create your first project to begin transforming your source material into multiple deliverables."
+            primaryAction={{
+              label: "New Project",
+              icon: <Plus className="w-4 h-4" />,
+              onClick: () => setShowNewProjectModal(true),
+            }}
+          />
+        </Card>
+      </section>
+
+      {/* Simple Placeholder Dialog for New Project */}
+      {showNewProjectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-900">Create New Project</h3>
+              <button
+                type="button"
+                onClick={() => setShowNewProjectModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-semibold"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              Project creation and multimodal ingestion will be unlocked in <strong>Module 0.3</strong>.
+            </p>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs text-slate-600 space-y-1">
+              <p className="font-semibold text-slate-900">Upcoming Ingestion Engine:</p>
+              <p>• Plain Text & Markdown</p>
+              <p>• PDF & DOCX Document Parser</p>
+              <p>• Image & Diagram Understanding</p>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                variant="primary"
+                onClick={() => setShowNewProjectModal(false)}
+              >
+                Got It
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </PageContainer>
+  );
+}
