@@ -1,5 +1,5 @@
 import json
-from typing import List, Union
+from typing import List, Union, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -18,11 +18,16 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
 
-    # CORS origins for local Next.js frontend communication
+    # CORS origins for local frontend communication
     CORS_ORIGINS: Union[str, List[str]] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+    # Gemini GenAI Settings (Server-side only)
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_MODEL: str = "gemini-3.7-flash"
+    MAX_SOURCE_LENGTH: int = 150000
 
     @property
     def cors_origins_list(self) -> List[str]:

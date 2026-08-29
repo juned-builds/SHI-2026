@@ -7,14 +7,15 @@ import {
   RotateCcw,
   AlertCircle,
   Plus,
-  ShieldCheck,
+  RefreshCw,
+  Cpu,
 } from "lucide-react";
 import {
   ProjectDraft,
   TransformationConfig,
   GenerationSession,
-  GenerationStatus,
   PipelineStage,
+  GeneratedDeliverable,
 } from "../../types";
 import { PageContainer } from "../layout/PageContainer";
 import { PageHeader } from "../layout/PageHeader";
@@ -23,11 +24,12 @@ import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { GenerationSummaryCard } from "../generation/GenerationSummaryCard";
 import { PipelineProgressTracker } from "../generation/PipelineProgressTracker";
-import { PipelineReadyBanner } from "../generation/PipelineReadyBanner";
+import { GeneratedDeliverablesViewer } from "../generation/GeneratedDeliverablesViewer";
 import {
   INITIAL_PIPELINE_STAGES,
   createDeliverablePipelineItems,
 } from "../../constants/generationConstants";
+import { executeTransformationApi } from "../../services/generationApi";
 
 export interface GenerationWorkspaceViewProps {
   draft: ProjectDraft | null;
@@ -46,7 +48,7 @@ export function GenerationWorkspaceView({
   onNavigate,
   onCancel,
 }: GenerationWorkspaceViewProps) {
-  // Session initialization
+  // Session state initialization
   const [session, setSession] = useState<GenerationSession | null>(() => {
     if (initialSession) return initialSession;
     if (!draft || !config) return null;
@@ -63,26 +65,34 @@ export function GenerationWorkspaceView({
     };
   });
 
-  const [progressPercent, setProgressPercent] = useState<number>(0);
+  const [progressPercent, setProgressPercent] = useState<number>(() => {
+    return initialSession?.status === "completed" ? 100 : 0;
+  });
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync back to parent if session updates
+  // Sync session state to parent when updated
   useEffect(() => {
     if (session && onUpdateSession) {
       onUpdateSession(session);
     }
   }, [session, onUpdateSession]);
 
-  // Clean up any running timers on unmount
+  // Clean up timers & pending fetches on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
   }, []);
 
-  // Empty state guard if draft or config is missing
+  // Empty state guard
   if (!draft || !draft.isReady || !config) {
     return (
       <PageContainer maxWidth="narrow">
@@ -114,9 +124,18 @@ export function GenerationWorkspaceView({
     );
   }
 
-  // Handle Start Transformation Action (Simulated local preparation pipeline)
-  const handleStartTransformation = () => {
+  // Handle Real AI Transformation Execution
+  const handleStartTransformation = async () => {
     if (!draft || !config) return;
+
+    setErrorMessage(null);
+
+    // Abort any prior request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     // Reset stages
     const freshStages: PipelineStage[] = INITIAL_PIPELINE_STAGES.map((s, idx) => ({
@@ -126,80 +145,110 @@ export function GenerationWorkspaceView({
 
     const freshDeliverables = createDeliverablePipelineItems(config.deliverables);
 
-    const newSession: GenerationSession = {
+    const activeSession: GenerationSession = {
       sessionId: `gen_session_${Date.now()}`,
       createdAt: new Date().toISOString(),
       draft,
       config,
-      status: "preparing",
+      status: "generating",
       currentStageIndex: 0,
       stages: freshStages,
       deliverablesPipeline: freshDeliverables,
+      error: null,
     };
 
-    setSession(newSession);
-    setProgressPercent(15);
+    setSession(activeSession);
+    setProgressPercent(20);
 
-    // Sequence through stages cleanly in memory
-    // Stage 1 -> Stage 2 after 700ms
-    timerRef.current = setTimeout(() => {
+    // Transition Stage 1 -> Stage 2 -> Stage 3 (Awaiting Gemini API)
+    timerRef.current = setTimeout(async () => {
       setSession((prev) => {
-        if (!prev || prev.status !== "preparing") return prev;
-        const updatedStages = [...prev.stages];
-        updatedStages[0].status = "completed";
-        updatedStages[1].status = "in_progress";
-        return {
-          ...prev,
-          currentStageIndex: 1,
-          stages: updatedStages,
-        };
+        if (!prev || prev.status !== "generating") return prev;
+        const updated = [...prev.stages];
+        updated[0].status = "completed";
+        updated[1].status = "in_progress";
+        return { ...prev, currentStageIndex: 1, stages: updated };
       });
       setProgressPercent(45);
 
-      // Stage 2 -> Stage 3 after another 700ms
-      timerRef.current = setTimeout(() => {
+      timerRef.current = setTimeout(async () => {
         setSession((prev) => {
-          if (!prev || prev.status !== "preparing") return prev;
-          const updatedStages = [...prev.stages];
-          updatedStages[1].status = "completed";
-          updatedStages[2].status = "in_progress";
-          const updatedDeliverables = prev.deliverablesPipeline.map((d) => ({
-            ...d,
-            status: "ready" as const,
-            promptSchemaReady: true,
-          }));
-          return {
-            ...prev,
-            currentStageIndex: 2,
-            stages: updatedStages,
-            deliverablesPipeline: updatedDeliverables,
-          };
+          if (!prev || prev.status !== "generating") return prev;
+          const updated = [...prev.stages];
+          updated[1].status = "completed";
+          updated[2].status = "in_progress";
+          return { ...prev, currentStageIndex: 2, stages: updated };
         });
-        setProgressPercent(75);
+        setProgressPercent(65);
 
-        // Stage 3 -> Stage 4 (Complete) after another 700ms
-        timerRef.current = setTimeout(() => {
+        // Execute live backend request
+        try {
+          const apiResponse = await executeTransformationApi(draft, config, controller.signal);
+
+          if (!apiResponse.success && (!apiResponse.deliverables || apiResponse.deliverables.length === 0)) {
+            throw new Error(apiResponse.error || "Transformation returned no deliverables.");
+          }
+
+          // Complete all stages
           setSession((prev) => {
-            if (!prev || prev.status !== "preparing") return prev;
-            const updatedStages = [...prev.stages];
-            updatedStages[2].status = "completed";
-            updatedStages[3].status = "completed";
+            if (!prev) return null;
+            const updatedStages: PipelineStage[] = prev.stages.map((s) => ({
+              ...s,
+              status: "completed",
+            }));
+
+            const updatedDeliverables = prev.deliverablesPipeline.map((item) => {
+              const matching = apiResponse.deliverables.find((d) => d.deliverableId === item.deliverableId);
+              return {
+                ...item,
+                status: matching?.status === "completed" ? ("ready" as const) : ("failed" as const),
+                promptSchemaReady: true,
+              };
+            });
+
             return {
               ...prev,
               status: "completed",
               currentStageIndex: 3,
               stages: updatedStages,
-              preparedAt: new Date().toISOString(),
+              deliverablesPipeline: updatedDeliverables,
+              generatedDeliverables: apiResponse.deliverables,
+              modelUsed: apiResponse.model || "gemini-3.7-flash",
+              completedAt: apiResponse.generatedAt,
             };
           });
+
           setProgressPercent(100);
-        }, 750);
-      }, 750);
-    }, 750);
+        } catch (err: any) {
+          if (controller.signal.aborted) {
+            return;
+          }
+
+          const errMsg = err.message || "An unexpected error occurred during AI transformation.";
+          setErrorMessage(errMsg);
+
+          setSession((prev) => {
+            if (!prev) return null;
+            const updatedStages = [...prev.stages];
+            if (updatedStages[2]) updatedStages[2].status = "failed";
+            return {
+              ...prev,
+              status: "failed",
+              stages: updatedStages,
+              error: errMsg,
+            };
+          });
+          setProgressPercent(0);
+        }
+      }, 400);
+    }, 300);
   };
 
-  // Handle Cancel Preparation
-  const handleCancelPreparation = () => {
+  // Handle Cancel
+  const handleCancelTransformation = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
@@ -213,8 +262,11 @@ export function GenerationWorkspaceView({
     setProgressPercent(0);
   };
 
-  // Handle Reset Pipeline Staging
-  const handleResetStaging = () => {
+  // Handle Reset / Re-run
+  const handleResetSession = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
     if (timerRef.current) {
       clearTimeout(timerRef.current);
     }
@@ -229,15 +281,18 @@ export function GenerationWorkspaceView({
         status: "idle",
         currentStageIndex: 0,
         stages: resetStages,
-        preparedAt: undefined,
+        generatedDeliverables: undefined,
+        error: null,
       };
     });
+    setErrorMessage(null);
     setProgressPercent(0);
   };
 
   const status = session?.status || "idle";
-  const isPreparing = status === "preparing" || status === "validating";
-  const isCompleted = status === "completed";
+  const isGenerating = status === "generating" || status === "preparing" || status === "validating";
+  const isCompleted = status === "completed" && session?.generatedDeliverables && session.generatedDeliverables.length > 0;
+  const isFailed = status === "failed";
 
   return (
     <PageContainer maxWidth="default">
@@ -248,7 +303,7 @@ export function GenerationWorkspaceView({
           size="sm"
           icon={<ArrowLeft className="w-4 h-4 text-slate-500" />}
           onClick={() => onNavigate("projects/new/configure")}
-          disabled={isPreparing}
+          disabled={isGenerating}
           className="text-slate-500 hover:text-slate-900 -ml-2"
         >
           Back to Configuration
@@ -259,7 +314,7 @@ export function GenerationWorkspaceView({
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            disabled={isPreparing}
+            disabled={isGenerating}
             className="text-slate-400 hover:text-red-600 text-xs"
           >
             Cancel Project
@@ -269,27 +324,58 @@ export function GenerationWorkspaceView({
 
       {/* Page Header */}
       <PageHeader
-        title={isCompleted ? "Generation Pipeline Prepared" : "Your transformation is ready"}
+        title={isCompleted ? "AI Deliverables Generated" : "GenAI Content Transformation Workspace"}
         description={
           isCompleted
-            ? "Your transformation parameters and prompt schemas are staged in memory for AI synthesis."
-            : "Review your source material, target parameters, and deliverable outputs before starting the transformation pipeline."
+            ? "Your multi-deliverable transformations have been generated using the Gemini AI engine."
+            : "Review parameters and execute structured multi-deliverable content transformation through the FastAPI GenAI pipeline."
         }
-        badge="Generation Workspace"
+        badge="Module 0.6 Core Engine"
       />
 
       <div className="space-y-6">
-        {/* If completed, show the ready banner */}
-        {isCompleted && (
-          <PipelineReadyBanner
-            onEditConfig={() => onNavigate("projects/new/configure")}
-            onReset={handleResetStaging}
-            deliverablesCount={config.deliverables.length}
-          />
+        {/* Error Alert */}
+        {isFailed && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-red-950">Transformation Generation Error</span>
+                <p className="text-red-700 mt-0.5">{errorMessage || session?.error || "AI generation failed."}</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<RotateCcw className="w-3.5 h-3.5" />}
+              onClick={handleStartTransformation}
+              className="text-xs bg-white border-red-300 text-red-700 hover:bg-red-50 shrink-0"
+            >
+              Retry Transformation
+            </Button>
+          </div>
         )}
 
-        {/* If preparing or completed, show pipeline stages tracker */}
-        {(isPreparing || isCompleted) && (
+        {/* Cancelled Alert */}
+        {status === "cancelled" && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Transformation was cancelled. You can restart or adjust your configuration.</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleResetSession}
+              className="text-xs shrink-0"
+            >
+              Reset Workspace
+            </Button>
+          </div>
+        )}
+
+        {/* If generating or completed or failed, show pipeline stages tracker */}
+        {(isGenerating || isCompleted || isFailed) && (
           <PipelineProgressTracker
             stages={session?.stages || INITIAL_PIPELINE_STAGES}
             currentStageIndex={session?.currentStageIndex || 0}
@@ -298,22 +384,14 @@ export function GenerationWorkspaceView({
           />
         )}
 
-        {/* If cancelled, show warning alert */}
-        {status === "cancelled" && (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs text-amber-800">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Transformation preparation was cancelled. You can restart staging or adjust configuration.</span>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleResetStaging}
-              className="text-xs shrink-0"
-            >
-              Reset Staging
-            </Button>
-          </div>
+        {/* Generated Deliverables Result Viewer */}
+        {isCompleted && session?.generatedDeliverables && (
+          <GeneratedDeliverablesViewer
+            deliverables={session.generatedDeliverables}
+            modelUsed={session.modelUsed}
+            sessionId={session.sessionId}
+            generatedAt={session.completedAt}
+          />
         )}
 
         {/* Source & Configuration Summary */}
@@ -322,7 +400,7 @@ export function GenerationWorkspaceView({
           config={config}
           onEditSource={() => onNavigate("projects/new")}
           onEditConfig={() => onNavigate("projects/new/configure")}
-          isLocked={isPreparing}
+          isLocked={isGenerating}
         />
 
         {/* Action Controls Bar */}
@@ -332,7 +410,7 @@ export function GenerationWorkspaceView({
               type="button"
               variant="outline"
               onClick={() => onNavigate("projects/new/configure")}
-              disabled={isPreparing}
+              disabled={isGenerating}
               className="w-full sm:w-auto text-xs"
             >
               Edit Configuration
@@ -342,7 +420,7 @@ export function GenerationWorkspaceView({
               type="button"
               variant="ghost"
               onClick={() => onNavigate("projects")}
-              disabled={isPreparing}
+              disabled={isGenerating}
               className="w-full sm:w-auto text-xs text-slate-600"
             >
               Back to Projects
@@ -350,25 +428,25 @@ export function GenerationWorkspaceView({
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            {isPreparing ? (
+            {isGenerating ? (
               <Button
                 type="button"
                 variant="outline"
                 icon={<XCircle className="w-4 h-4 text-red-500" />}
-                onClick={handleCancelPreparation}
+                onClick={handleCancelTransformation}
                 className="w-full sm:w-auto text-xs border-red-200 text-red-700 hover:bg-red-50"
               >
-                Cancel Preparation
+                Cancel Transformation
               </Button>
             ) : isCompleted ? (
               <Button
                 type="button"
-                variant="outline"
-                icon={<RotateCcw className="w-3.5 h-3.5" />}
-                onClick={handleResetStaging}
-                className="w-full sm:w-auto text-xs"
+                variant="primary"
+                icon={<RefreshCw className="w-3.5 h-3.5" />}
+                onClick={handleStartTransformation}
+                className="w-full sm:w-auto text-xs shadow-xs"
               >
-                Re-stage Pipeline
+                Regenerate Deliverables
               </Button>
             ) : (
               <Button

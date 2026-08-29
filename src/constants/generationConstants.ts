@@ -17,18 +17,18 @@ export const INITIAL_PIPELINE_STAGES: PipelineStage[] = [
     detail: "Synthesizing editorial rules and language targets",
   },
   {
-    id: "assemble_schemas",
-    title: "3. Deliverable Schemas & Prompts Assembly",
-    description: "Generating JSON schemas and context payloads for each selected deliverable.",
+    id: "gemini_execution",
+    title: "3. Gemini GenAI Engine Execution",
+    description: "Executing structured AI transformation through FastAPI backend.",
     status: "pending",
-    detail: "Mapping deliverable templates to configuration matrix",
+    detail: "Synthesizing multi-deliverable JSON output via Google GenAI SDK",
   },
   {
-    id: "pipeline_ready",
-    title: "4. Generation Pipeline Staged",
-    description: "Pipeline ready for GenAI model execution.",
+    id: "synthesize_deliverables",
+    title: "4. Deliverables Synthesized & Validated",
+    description: "Transformations validated and formatted for review.",
     status: "pending",
-    detail: "Local preparation complete — staged for future AI execution engine",
+    detail: "Multi-format outputs ready for consumption",
   },
 ];
 

@@ -135,6 +135,25 @@ export interface DeliverablePipelineItem {
   promptSchemaReady: boolean;
 }
 
+export interface GeneratedDeliverable {
+  deliverableId: DeliverableId;
+  title: string;
+  content: string;
+  structuredData?: Record<string, any> | null;
+  status: "completed" | "failed";
+  error?: string | null;
+}
+
+export interface GenerationApiResponse {
+  success: boolean;
+  sessionId: string;
+  status: "completed" | "partial" | "failed";
+  model?: string | null;
+  deliverables: GeneratedDeliverable[];
+  error?: string | null;
+  generatedAt: string;
+}
+
 export interface GenerationSession {
   sessionId: string;
   createdAt: string;
@@ -144,6 +163,9 @@ export interface GenerationSession {
   currentStageIndex: number;
   stages: PipelineStage[];
   deliverablesPipeline: DeliverablePipelineItem[];
+  generatedDeliverables?: GeneratedDeliverable[];
+  modelUsed?: string;
   preparedAt?: string;
+  completedAt?: string;
   error?: string | null;
 }
