@@ -1,0 +1,7 @@
+{
+  "name": "SIH 26154 — Content Transformation Platform",
+  "description": "Portable project foundation for SIH 26154: Gen AI Platform for Automated Content Transformation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
