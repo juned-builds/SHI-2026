@@ -201,6 +201,119 @@ export interface GeneratedDeliverable {
   originalStructuredData?: VideoPackageData | Record<string, any> | null;
   generatedAt?: string;
   lastEditedAt?: string;
+  factMeshAudit?: FactMeshAudit | null;
+}
+
+export type FactMeshClaimStatus = "verified" | "inferred" | "unsupported" | "not_a_fact";
+
+export type FactMeshClaimType =
+  | "number"
+  | "date"
+  | "organization"
+  | "person"
+  | "location"
+  | "policy"
+  | "commitment"
+  | "eligibility"
+  | "factual_statement"
+  | "recommendation"
+  | "editorial_statement"
+  | string;
+
+export interface SourceEvidenceUnit {
+  id: string; // e.g. "S001"
+  index: number; // 1-based index
+  text: string;
+  pageNumber?: number | null;
+  section?: string | null;
+}
+
+export interface FactMeshClaim {
+  claimId: string;
+  claimText: string;
+  claimType: FactMeshClaimType;
+  status: FactMeshClaimStatus;
+  confidence: number; // 0 to 100
+  supportingSourceIds: string[];
+  explanation: string;
+  detectedNumberOrDate?: string | null;
+}
+
+export interface FactMeshSummary {
+  totalClaims: number;
+  verifiedClaims: number;
+  inferredClaims: number;
+  unsupportedClaims: number;
+  nonFactStatements: number;
+  numbersChecked: number;
+  numbersVerified: number;
+  datesChecked: number;
+  datesVerified: number;
+  integrityScore: number; // 0 to 100
+}
+
+export interface FactMeshAudit {
+  auditId: string;
+  generatedAt: string;
+  deliverableId: DeliverableId | string;
+  deliverableTitle?: string;
+  sourceSummary: {
+    sourceName?: string;
+    sourceType: string;
+    sourceUnitCount: number;
+  };
+  summary: FactMeshSummary;
+  sourceUnits: SourceEvidenceUnit[];
+  claims: FactMeshClaim[];
+}
+
+export type FactMeshAuditStatus =
+  | "idle"
+  | "auditing"
+  | "completed"
+  | "retrying"
+  | "temporarily_unavailable"
+  | "quota_exhausted"
+  | "failed";
+
+export type FactMeshErrorCode =
+  | "MODEL_UNAVAILABLE"
+  | "RATE_LIMITED"
+  | "QUOTA_EXHAUSTED"
+  | "TRANSIENT_SERVER_ERROR"
+  | "TIMEOUT_ERROR"
+  | "INVALID_API_KEY"
+  | "VALIDATION_ERROR"
+  | "PARSE_ERROR"
+  | "UNKNOWN_ERROR";
+
+export interface FactMeshApiError {
+  code: FactMeshErrorCode;
+  message: string;
+  retryable: boolean;
+  provider?: string;
+  attempts?: number;
+  maxAttempts?: number;
+}
+
+export interface FactMeshApiResponse {
+  success: boolean;
+  data?: FactMeshAudit;
+  error?: FactMeshApiError;
+  detail?: string;
+}
+
+export interface FactMeshAuditRequest {
+  sourceText: string;
+  sourceMetadata?: {
+    name?: string;
+    type?: string;
+    pageCount?: number;
+  };
+  deliverableId: string;
+  deliverableName?: string;
+  generatedContent: string;
+  structuredData?: any;
 }
 
 export type DeliverableDisplayMode = "preview" | "structured" | "raw_json";

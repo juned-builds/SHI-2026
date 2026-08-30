@@ -7,6 +7,7 @@ import {
   DeliverableId,
   DeliverableDisplayMode,
   PersistenceStatus,
+  FactMeshAudit,
 } from "../../types";
 import { Card } from "../ui/Card";
 import { ResultsHeader } from "./ResultsHeader";
@@ -19,6 +20,7 @@ import { RegenerateDeliverableDialog } from "./RegenerateDeliverableDialog";
 import { SaveProjectModal } from "./SaveProjectModal";
 import { DiscardProjectModal } from "./DiscardProjectModal";
 import { ResultsEmptyState } from "./ResultsEmptyState";
+import { FactMeshAuditView } from "./audit/FactMeshAuditView";
 import { regenerateSingleDeliverableApi } from "../../services/generationApi";
 import {
   buildCombinedExportMarkdown,
@@ -63,6 +65,7 @@ export function ResultsWorkspace({
   });
   const [displayMode, setDisplayMode] = useState<DeliverableDisplayMode>("preview");
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isFactMeshAuditOpen, setIsFactMeshAuditOpen] = useState<boolean>(false);
   const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState<boolean>(false);
   const [isRegeneratingSingle, setIsRegeneratingSingle] = useState<boolean>(false);
   const [singleRegenError, setSingleRegenError] = useState<string | null>(null);
@@ -128,6 +131,45 @@ export function ResultsWorkspace({
     setSelectedId(id);
     setIsEditing(false);
     setDisplayMode("preview");
+  };
+
+  // Handle caching and persisting FactMesh Grounding audit results
+  const handleUpdateDeliverableAudit = (audit: FactMeshAudit) => {
+    const updated = deliverables.map((d) => {
+      if (d.deliverableId === selectedId) {
+        return {
+          ...d,
+          factMeshAudit: audit,
+        };
+      }
+      return d;
+    });
+
+    setDeliverables(updated);
+    if (session && onUpdateSession) {
+      onUpdateSession({
+        ...session,
+        generatedDeliverables: updated,
+      });
+    }
+
+    // If project is already saved in IndexedDB, update the generation record
+    const isProjectAlreadySaved = Boolean(
+      session?.projectId || session?.isSaved || persistenceStatus === "saved" || persistenceStatus === "dirty"
+    );
+    if (isProjectAlreadySaved) {
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        // Automatically save updated deliverable with audit into current generation record
+        saveGenerationAndSyncProject(draft, config, updated, {
+          projectId: session?.projectId,
+          generationId: targetGenId,
+          modelUsed: session?.modelUsed || "gemini-3.7-flash",
+        }).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not auto-sync FactMesh audit to IndexedDB:", err);
+        });
+      }
+    }
   };
 
   // Handle local save of deliverable edits
@@ -404,96 +446,107 @@ export function ResultsWorkspace({
         onRegenerateAll={onRegenerateAll}
       />
 
-      {/* Main Dual-Column Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Navigation Sidebar / Deliverable Selector */}
-        <div className="lg:col-span-4 xl:col-span-3">
-          <Card className="p-3 shadow-xs border-slate-200">
-            <DeliverableNavigation
-              deliverables={deliverables}
-              selectedId={selectedId}
-              onSelect={handleSelectDeliverable}
-              isRegenerating={isRegeneratingSingle}
-              regeneratingId={isRegeneratingSingle ? selectedId : null}
-            />
-          </Card>
-        </div>
-
-        {/* Content Viewer / Editor Main Card */}
-        <div className="lg:col-span-8 xl:col-span-9">
-          <Card className="p-0 overflow-hidden shadow-xs border-slate-200">
-            {/* Deliverable Header */}
-            <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  {activeDeliverable.title || activeMeta?.name || activeDeliverable.deliverableId}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {activeMeta?.description || "Structured content transformation deliverable."}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(!isEditing)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
-                    isEditing
-                      ? "bg-amber-100 border-amber-300 text-amber-900 shadow-2xs font-semibold"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {isEditing ? "Exit Edit Mode" : "Edit Locally"}
-                </button>
-              </div>
-            </div>
-
-            {/* Non-sensitive Generation Metadata Bar */}
-            <DeliverableMetadata
-              deliverable={activeDeliverable}
-              modelUsed={session?.modelUsed || "gemini-3.7-flash"}
-              projectName={draft.name}
-            />
-
-            {/* Main Area: Preview or Local Editor */}
-            <div className="p-6 bg-white min-h-[360px]">
-              {isEditing ? (
-                <DeliverableEditor
-                  deliverable={activeDeliverable}
-                  onSave={handleSaveEdit}
-                  onResetToOriginal={handleResetToOriginal}
-                  onCancel={() => setIsEditing(false)}
-                />
-              ) : (
-                <DeliverablePreview
-                  deliverable={activeDeliverable}
-                  displayMode={displayMode}
-                  onChangeDisplayMode={setDisplayMode}
-                  projectName={draft.name}
-                />
-              )}
-            </div>
-
-            {/* Bottom Export & Action Toolbar */}
-            <div className="p-4 bg-slate-50/50 border-t border-slate-200">
-              <ExportControls
-                activeDeliverable={activeDeliverable}
-                allDeliverables={deliverables}
-                draft={draft}
-                config={config}
-                modelUsed={session?.modelUsed || "gemini-3.7-flash"}
-                sessionId={session?.sessionId}
-                isEditing={isEditing}
-                onToggleEdit={() => setIsEditing(!isEditing)}
-                onOpenRegenerate={() => {
-                  setSingleRegenError(null);
-                  setIsRegenerateDialogOpen(true);
-                }}
+      {/* Main Content Layout: FactMesh Audit View OR Dual-Column Deliverable Workspace */}
+      {isFactMeshAuditOpen ? (
+        <FactMeshAuditView
+          deliverable={activeDeliverable}
+          draft={draft}
+          onUpdateDeliverableAudit={handleUpdateDeliverableAudit}
+          onExit={() => setIsFactMeshAuditOpen(false)}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Navigation Sidebar / Deliverable Selector */}
+          <div className="lg:col-span-4 xl:col-span-3">
+            <Card className="p-3 shadow-xs border-slate-200">
+              <DeliverableNavigation
+                deliverables={deliverables}
+                selectedId={selectedId}
+                onSelect={handleSelectDeliverable}
+                isRegenerating={isRegeneratingSingle}
+                regeneratingId={isRegeneratingSingle ? selectedId : null}
               />
-            </div>
-          </Card>
+            </Card>
+          </div>
+
+          {/* Content Viewer / Editor Main Card */}
+          <div className="lg:col-span-8 xl:col-span-9">
+            <Card className="p-0 overflow-hidden shadow-xs border-slate-200">
+              {/* Deliverable Header */}
+              <div className="p-4 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    {activeDeliverable.title || activeMeta?.name || activeDeliverable.deliverableId}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {activeMeta?.description || "Structured content transformation deliverable."}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(!isEditing)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                      isEditing
+                        ? "bg-amber-100 border-amber-300 text-amber-900 shadow-2xs font-semibold"
+                        : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {isEditing ? "Exit Edit Mode" : "Edit Locally"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Non-sensitive Generation Metadata Bar */}
+              <DeliverableMetadata
+                deliverable={activeDeliverable}
+                modelUsed={session?.modelUsed || "gemini-3.7-flash"}
+                projectName={draft.name}
+                onOpenFactMeshAudit={() => setIsFactMeshAuditOpen(true)}
+              />
+
+              {/* Main Area: Preview or Local Editor */}
+              <div className="p-6 bg-white min-h-[360px]">
+                {isEditing ? (
+                  <DeliverableEditor
+                    deliverable={activeDeliverable}
+                    onSave={handleSaveEdit}
+                    onResetToOriginal={handleResetToOriginal}
+                    onCancel={() => setIsEditing(false)}
+                  />
+                ) : (
+                  <DeliverablePreview
+                    deliverable={activeDeliverable}
+                    displayMode={displayMode}
+                    onChangeDisplayMode={setDisplayMode}
+                    projectName={draft.name}
+                  />
+                )}
+              </div>
+
+              {/* Bottom Export & Action Toolbar */}
+              <div className="p-4 bg-slate-50/50 border-t border-slate-200">
+                <ExportControls
+                  activeDeliverable={activeDeliverable}
+                  allDeliverables={deliverables}
+                  draft={draft}
+                  config={config}
+                  modelUsed={session?.modelUsed || "gemini-3.7-flash"}
+                  sessionId={session?.sessionId}
+                  isEditing={isEditing}
+                  onToggleEdit={() => setIsEditing(!isEditing)}
+                  onOpenFactMeshAudit={() => setIsFactMeshAuditOpen(true)}
+                  onOpenRegenerate={() => {
+                    setSingleRegenError(null);
+                    setIsRegenerateDialogOpen(true);
+                  }}
+                />
+              </div>
+            </Card>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Save Project Modal */}
       <SaveProjectModal

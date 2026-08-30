@@ -3,6 +3,9 @@ import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { executeTransformation } from "./server/generationService";
+import { executeFactMeshAudit } from "./server/factMeshService";
+import { testGeminiAvailability, STABLE_GEMINI_MODELS } from "./server/geminiService";
+import { classifyError } from "./server/errorHandling";
 
 async function startServer() {
   const app = express();
@@ -25,6 +28,27 @@ async function startServer() {
     });
   });
 
+  // Minimal Gemini availability & diagnostics endpoint
+  app.get("/api/health/gemini", async (req: Request, res: Response) => {
+    try {
+      const modelToTest = (req.query.model as string) || undefined;
+      const forceRefresh = req.query.refresh === "true";
+      const result = await testGeminiAvailability(modelToTest, forceRefresh);
+      res.json({
+        success: result.available,
+        status: result.status,
+        availableModels: STABLE_GEMINI_MODELS,
+        ...result,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        status: "TEMPORARILY_UNAVAILABLE",
+        error: err?.message || String(err),
+      });
+    }
+  });
+
   // Primary GenAI Content Transformation endpoint
   app.post("/api/v1/generation/generate", async (req: Request, res: Response) => {
     try {
@@ -44,11 +68,22 @@ async function startServer() {
       const result = await executeTransformation(payload);
 
       if (!result.success && result.error) {
+        if (result.error.includes("QUOTA_EXHAUSTED") || result.error.toLowerCase().includes("quota")) {
+          return res.status(429).json({
+            success: false,
+            sessionId: result.sessionId,
+            status: "failed",
+            error: {
+              code: "QUOTA_EXHAUSTED",
+              message: "Gemini usage quota has been reached for the current API plan. Your project and generated content are safe and unchanged.",
+              retryable: false,
+              provider: "gemini",
+            },
+            detail: "Gemini usage quota has been reached for the current API plan. Your project and generated content are safe and unchanged.",
+          });
+        }
         if (result.error.includes("GEMINI_API_KEY") || result.error.includes("API key")) {
           return res.status(500).json({ detail: result.error });
-        }
-        if (result.error.toLowerCase().includes("quota") || result.error.toLowerCase().includes("rate limit")) {
-          return res.status(429).json({ detail: "Gemini API rate limit exceeded. Please try again in a moment." });
         }
       }
 
@@ -57,6 +92,78 @@ async function startServer() {
       console.error("[Server] Transformation endpoint error:", err.message || err);
       const msg = err.message || "An unexpected error occurred during AI transformation.";
       return res.status(500).json({ detail: msg });
+    }
+  });
+
+  // FactMesh™ Grounding & Provenance Audit endpoint
+  app.post("/api/v1/generation/audit-grounding", async (req: Request, res: Response) => {
+    try {
+      const payload = req.body;
+      if (!payload || typeof payload !== "object") {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid request payload.",
+            retryable: false,
+            attempts: 0,
+          },
+          detail: "Invalid request payload.",
+        });
+      }
+
+      if (!payload.sourceText || !payload.sourceText.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Source text cannot be empty for grounding audit.",
+            retryable: false,
+            attempts: 0,
+          },
+          detail: "Source text cannot be empty for grounding audit.",
+        });
+      }
+
+      if (!payload.generatedContent || !payload.generatedContent.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Generated deliverable content cannot be empty for grounding audit.",
+            retryable: false,
+            attempts: 0,
+          },
+          detail: "Generated deliverable content cannot be empty for grounding audit.",
+        });
+      }
+
+      const auditResult = await executeFactMeshAudit(payload);
+      return res.status(200).json({
+        success: true,
+        data: auditResult,
+        ...auditResult, // Backward-compatibility
+      });
+    } catch (err: any) {
+      const classified = classifyError(err, 3);
+      if (classified.code === "QUOTA_EXHAUSTED") {
+        console.log(`[Server] FactMesh audit unavailable: provider quota exhausted`);
+      } else {
+        console.warn(
+          `[Server] FactMesh audit failed with [${classified.code}] (HTTP ${classified.httpStatus}): ${classified.message}`
+        );
+      }
+      return res.status(classified.httpStatus).json({
+        success: false,
+        error: {
+          code: classified.code,
+          message: classified.message,
+          retryable: classified.retryable,
+          provider: classified.provider || "gemini",
+          attempts: classified.attempts || 1,
+        },
+        detail: classified.message,
+      });
     }
   });
 

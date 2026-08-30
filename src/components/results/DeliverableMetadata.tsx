@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   Layers,
   Sparkles,
+  ShieldCheck,
 } from "lucide-react";
 import { GeneratedDeliverable } from "../../types";
 import { DELIVERABLES_CATALOG } from "../../constants/transformationOptions";
@@ -16,18 +17,21 @@ export interface DeliverableMetadataProps {
   deliverable: GeneratedDeliverable;
   modelUsed?: string;
   projectName?: string;
+  onOpenFactMeshAudit?: () => void;
 }
 
 export function DeliverableMetadata({
   deliverable,
   modelUsed = "gemini-3.7-flash",
   projectName,
+  onOpenFactMeshAudit,
 }: DeliverableMetadataProps) {
   const meta = DELIVERABLES_CATALOG.find((m) => m.id === deliverable.deliverableId);
   const wordCount = deliverable.content.trim()
     ? deliverable.content.trim().split(/\s+/).length
     : 0;
   const charCount = deliverable.content.length;
+  const audit = deliverable.factMeshAudit;
 
   return (
     <div className="flex flex-wrap items-center gap-2 py-2 px-3 bg-slate-50 border-b border-slate-200 text-xs text-slate-600">
@@ -50,6 +54,33 @@ export function DeliverableMetadata({
         <FileText className="w-3 h-3 text-slate-400" />
         {wordCount.toLocaleString()} words &bull; {charCount.toLocaleString()} chars
       </span>
+
+      {/* FactMesh Grounding Status or Quick Trigger */}
+      {audit ? (
+        <button
+          type="button"
+          onClick={onOpenFactMeshAudit}
+          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold cursor-pointer transition-all ${
+            audit.summary.integrityScore >= 85
+              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+              : audit.summary.integrityScore >= 65
+              ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+              : "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100"
+          }`}
+        >
+          <ShieldCheck className="w-3 h-3" />
+          FactMesh: {audit.summary.integrityScore}% Score
+        </button>
+      ) : onOpenFactMeshAudit ? (
+        <button
+          type="button"
+          onClick={onOpenFactMeshAudit}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[11px] font-medium cursor-pointer transition-all"
+        >
+          <ShieldCheck className="w-3 h-3 text-indigo-600" />
+          Verify with FactMesh™
+        </button>
+      ) : null}
 
       {/* Edited Status Indicator */}
       {deliverable.isEdited ? (

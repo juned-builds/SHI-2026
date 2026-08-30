@@ -133,9 +133,17 @@ export function GenerationWorkspaceView({
     );
   }
 
+  const isTransformingRef = useRef<boolean>(false);
+
   // Handle Real AI Transformation Execution
   const handleStartTransformation = async () => {
     if (!draft || !config) return;
+
+    // Mutex lock to prevent duplicate rapid trigger
+    if (isTransformingRef.current) {
+      console.log("[GenerationWorkspaceView] Transformation already in progress. Ignoring duplicate trigger.");
+      return;
+    }
 
     // Validate source contract before starting
     const contract = validateDraftSourceContract(draft);
@@ -144,6 +152,7 @@ export function GenerationWorkspaceView({
       return;
     }
 
+    isTransformingRef.current = true;
     setErrorMessage(null);
 
     // Abort any prior request
@@ -268,6 +277,8 @@ export function GenerationWorkspaceView({
           if (onUpdateSession) {
             onUpdateSession(failedSession);
           }
+        } finally {
+          isTransformingRef.current = false;
         }
       }, 400);
     }, 300);
@@ -378,40 +389,96 @@ export function GenerationWorkspaceView({
       <div className="space-y-6">
         {/* Error Alert with categorized guidance */}
         {isFailed && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
-            <div className="flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold text-red-950">Transformation Generation Error</span>
-                <p className="text-red-700 mt-0.5">{errorMessage || session?.error || "AI generation failed."}</p>
-                {errorMessage?.toLowerCase().includes("source") && (
-                  <p className="text-red-600 mt-1 font-medium">
-                    Tip: Check that your uploaded document or raw text contains readable content.
-                  </p>
-                )}
+          (() => {
+            const isQuotaExhausted = Boolean(
+              errorMessage?.includes("QUOTA_EXHAUSTED") ||
+              errorMessage?.toLowerCase().includes("quota") ||
+              session?.error?.includes("QUOTA_EXHAUSTED") ||
+              session?.error?.toLowerCase().includes("quota")
+            );
+
+            if (isQuotaExhausted) {
+              return (
+                <div className="p-4 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-semibold text-amber-950">AI Usage Limit Reached</span>
+                      <p className="text-amber-800 mt-0.5">
+                        Gemini usage quota has been reached for the current API plan. Your source input, configuration, and project data are safe and unchanged.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={<ArrowLeft className="w-3.5 h-3.5" />}
+                      onClick={() => onNavigate("projects/new/configure")}
+                      className="text-xs bg-white text-slate-700 hover:bg-slate-50 border-amber-200"
+                    >
+                      Back to Configuration
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={<Edit2 className="w-3.5 h-3.5" />}
+                      onClick={() => onNavigate("projects/new")}
+                      className="text-xs bg-white text-slate-700 hover:bg-slate-50 border-amber-200"
+                    >
+                      Edit Source
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      icon={<RotateCcw className="w-3.5 h-3.5" />}
+                      onClick={handleStartTransformation}
+                      className="text-xs bg-white border-amber-300 text-amber-900 hover:bg-amber-100"
+                    >
+                      Retry Later
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold text-red-950">Transformation temporarily unavailable</span>
+                    <p className="text-red-700 mt-0.5">{errorMessage || session?.error || "The AI transformation service is experiencing high demand. Your source input is safe."}</p>
+                    {errorMessage?.toLowerCase().includes("source") && (
+                      <p className="text-red-600 mt-1 font-medium">
+                        Tip: Check that your uploaded document or raw text contains readable content.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<Edit2 className="w-3.5 h-3.5" />}
+                    onClick={() => onNavigate("projects/new")}
+                    className="text-xs bg-white text-slate-700 hover:bg-slate-50"
+                  >
+                    Edit Source
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    icon={<RotateCcw className="w-3.5 h-3.5" />}
+                    onClick={handleStartTransformation}
+                    className="text-xs bg-white border-red-300 text-red-700 hover:bg-red-50"
+                  >
+                    Retry Transformation
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-              <Button
-                variant="outline"
-                size="sm"
-                icon={<Edit2 className="w-3.5 h-3.5" />}
-                onClick={() => onNavigate("projects/new")}
-                className="text-xs bg-white text-slate-700 hover:bg-slate-50"
-              >
-                Edit Source
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                icon={<RotateCcw className="w-3.5 h-3.5" />}
-                onClick={handleStartTransformation}
-                className="text-xs bg-white border-red-300 text-red-700 hover:bg-red-50"
-              >
-                Retry Transformation
-              </Button>
-            </div>
-          </div>
+            );
+          })()
         )}
 
         {/* Cancelled Alert */}

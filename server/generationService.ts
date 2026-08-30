@@ -298,6 +298,7 @@ function formatMarkdownFallback(deliverableId: string, data: Record<string, any>
 export async function executeTransformation(request: GenerationRequestPayload): Promise<GenerationResponsePayload> {
   const sessionId = `gen_session_${Math.random().toString(36).substring(2, 14)}`;
   const nowIso = new Date().toISOString();
+  const startTime = Date.now();
 
   if (!request.sourceText || !request.sourceText.trim()) {
     throw new Error("Source text cannot be empty.");
@@ -306,18 +307,41 @@ export async function executeTransformation(request: GenerationRequestPayload): 
     throw new Error("At least one target deliverable must be selected.");
   }
 
+  const deliverableCount = request.deliverables.length;
+  console.log(`[Generation] Request started (Deliverables: ${deliverableCount}, CharCount: ${request.sourceText.length})`);
+
   const systemInstruction = buildSystemInstruction();
   const prompt = buildTransformationPrompt(request);
 
+  // Deliverable-aware bounded timeout: base 60s + 6s per deliverable, capped at 95s
+  const timeoutMs = Math.min(95000, Math.max(60000, 45000 + deliverableCount * 6000));
+
   let rawResult: any;
-  let modelUsed = "gemini-3.6-flash";
+  let modelUsed = "gemini-3.7-flash";
 
   try {
-    const genResult = await generateStructuredJson(prompt, systemInstruction);
+    const genResult = await generateStructuredJson(prompt, systemInstruction, {
+      timeoutMs,
+      maxAttempts: 4,
+    });
     rawResult = genResult.data;
     modelUsed = genResult.modelUsed;
   } catch (err: any) {
-    console.error("[GenerationService] Execution failed:", err);
+    const totalElapsed = Date.now() - startTime;
+    if (err?.code === "QUOTA_EXHAUSTED" || err?.message?.toLowerCase().includes("quota")) {
+      console.log("[Generation] Request stopped — provider quota exhausted");
+      return {
+        success: false,
+        sessionId,
+        status: "failed",
+        model: modelUsed,
+        deliverables: [],
+        error: "QUOTA_EXHAUSTED: Gemini usage quota has been reached for the current API plan. Your project and generated content are safe and unchanged.",
+        generatedAt: nowIso,
+      };
+    }
+
+    console.warn(`[Generation] Transformation failed after ${totalElapsed}ms: ${err?.message || err}`);
     return {
       success: false,
       sessionId,
@@ -329,6 +353,7 @@ export async function executeTransformation(request: GenerationRequestPayload): 
     };
   }
 
+  const normStartTime = Date.now();
   const parsedDeliverables: GeneratedDeliverableResponse[] = [];
   const rawList = Array.isArray(rawResult?.deliverables) ? rawResult.deliverables : [];
   const deliverablesById: Record<string, any> = {};
@@ -383,6 +408,10 @@ export async function executeTransformation(request: GenerationRequestPayload): 
       : completedCount > 0
       ? "partial"
       : "failed";
+
+  const normElapsed = Date.now() - normStartTime;
+  const totalElapsed = Date.now() - startTime;
+  console.log(`[Generation] Normalization completed: ${normElapsed}ms (Total elapsed: ${totalElapsed}ms, Completed: ${completedCount}/${deliverableCount})`);
 
   return {
     success: completedCount > 0,

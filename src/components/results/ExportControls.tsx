@@ -11,6 +11,7 @@ import {
   Share2,
   Film,
   MessageSquare,
+  ShieldCheck,
 } from "lucide-react";
 import { GeneratedDeliverable, ProjectDraft, TransformationConfig } from "../../types";
 import { Button } from "../ui/Button";
@@ -37,6 +38,7 @@ export interface ExportControlsProps {
   isEditing?: boolean;
   onToggleEdit?: () => void;
   onOpenRegenerate?: () => void;
+  onOpenFactMeshAudit?: () => void;
 }
 
 export function ExportControls({
@@ -49,6 +51,7 @@ export function ExportControls({
   isEditing = false,
   onToggleEdit,
   onOpenRegenerate,
+  onOpenFactMeshAudit,
 }: ExportControlsProps) {
   const [copied, setCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
@@ -133,8 +136,23 @@ export function ExportControls({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-200">
-      {/* Left side actions (Edit / Regenerate) */}
-      <div className="flex items-center gap-2">
+      {/* Left side actions (Edit / Regenerate / FactMesh Grounding) */}
+      <div className="flex flex-wrap items-center gap-2">
+        {onOpenFactMeshAudit && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onOpenFactMeshAudit}
+            icon={<ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />}
+            className="text-xs text-indigo-900 border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/80 font-semibold shadow-2xs"
+          >
+            {activeDeliverable.factMeshAudit
+              ? `FactMesh™ Audit (${activeDeliverable.factMeshAudit.summary.integrityScore}%)`
+              : "Verify Grounding (FactMesh™)"}
+          </Button>
+        )}
+
         {onToggleEdit && (
           <Button
             type="button"
