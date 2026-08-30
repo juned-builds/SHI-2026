@@ -13,7 +13,17 @@ import { ConfigureView } from "./components/pages/ConfigureView";
 import { GenerationWorkspaceView } from "./components/pages/GenerationWorkspaceView";
 import { ResultsWorkspace } from "./components/results/ResultsWorkspace";
 import { PageContainer } from "./components/layout/PageContainer";
-import { ProjectDraft, TransformationConfig, GenerationSession } from "./types";
+import {
+  ProjectDraft,
+  TransformationConfig,
+  GenerationSession,
+  ProjectRecord,
+  GenerationRecord,
+} from "./types";
+import {
+  INITIAL_PIPELINE_STAGES,
+  createDeliverablePipelineItems,
+} from "./constants/generationConstants";
 
 export default function App() {
   const [currentRoute, setCurrentRoute] = useState<string>("dashboard");
@@ -114,6 +124,48 @@ export default function App() {
     setCurrentRoute(route);
   };
 
+  const handleOpenProject = (project: ProjectRecord, generation?: GenerationRecord) => {
+    setProjectDraft(project.draft);
+
+    if (generation && generation.deliverables && generation.deliverables.length > 0) {
+      setTransformationConfig(generation.config);
+      const restoredSession: GenerationSession = {
+        sessionId: generation.id,
+        projectId: project.id,
+        generationId: generation.id,
+        createdAt: generation.createdAt,
+        completedAt: generation.completedAt,
+        draft: generation.draft || project.draft,
+        config: generation.config,
+        status: "completed",
+        currentStageIndex: 3,
+        stages: INITIAL_PIPELINE_STAGES.map((s) => ({ ...s, status: "completed" })),
+        deliverablesPipeline: createDeliverablePipelineItems(generation.config.deliverables).map(
+          (item) => ({
+            ...item,
+            status: "ready",
+            promptSchemaReady: true,
+          })
+        ),
+        generatedDeliverables: generation.deliverables,
+        modelUsed: generation.modelUsed || "gemini-3.7-flash",
+      };
+      setGenerationSession(restoredSession);
+      setCurrentRoute("projects/results");
+    } else {
+      setTransformationConfig(null);
+      setGenerationSession(null);
+      setCurrentRoute("projects/new/configure");
+    }
+  };
+
+  const handleNewTransformationForProject = (project: ProjectRecord) => {
+    setProjectDraft(project.draft);
+    setTransformationConfig(null);
+    setGenerationSession(null);
+    setCurrentRoute("projects/new/configure");
+  };
+
   return (
     <AppShell
       title={getTitle()}
@@ -122,10 +174,17 @@ export default function App() {
       onNavigate={handleNavigate}
     >
       {currentRoute === "dashboard" && (
-        <DashboardView onNavigate={handleNavigate} />
+        <DashboardView
+          onNavigate={handleNavigate}
+          onOpenProject={handleOpenProject}
+        />
       )}
       {currentRoute === "projects" && (
-        <ProjectsView onNavigate={handleNavigate} />
+        <ProjectsView
+          onNavigate={handleNavigate}
+          onOpenProject={handleOpenProject}
+          onNewTransformationForProject={handleNewTransformationForProject}
+        />
       )}
       {currentRoute === "projects/new" && (
         <NewProjectView
@@ -170,5 +229,3 @@ export default function App() {
     </AppShell>
   );
 }
-
-

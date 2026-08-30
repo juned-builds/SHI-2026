@@ -31,6 +31,7 @@ import {
   createDeliverablePipelineItems,
 } from "../../constants/generationConstants";
 import { executeTransformationApi } from "../../services/generationApi";
+import { saveGenerationAndSyncProject } from "../../services/db";
 
 export interface GenerationWorkspaceViewProps {
   draft: ProjectDraft | null;
@@ -190,6 +191,27 @@ export function GenerationWorkspaceView({
             throw new Error(apiResponse.error || "Transformation returned no deliverables.");
           }
 
+          // Persist generation and sync project to IndexedDB
+          let persistedProjectId = session?.projectId;
+          let persistedGenId = session?.generationId;
+
+          try {
+            const saved = await saveGenerationAndSyncProject(
+              draft,
+              config,
+              apiResponse.deliverables,
+              {
+                projectId: session?.projectId,
+                generationId: session?.sessionId,
+                modelUsed: apiResponse.model || "gemini-3.7-flash",
+              }
+            );
+            persistedProjectId = saved.project.id;
+            persistedGenId = saved.generation.id;
+          } catch (dbErr) {
+            console.warn("[GenerationWorkspace] Could not persist to IndexedDB:", dbErr);
+          }
+
           // Complete all stages
           setSession((prev) => {
             if (!prev) return null;
@@ -209,6 +231,8 @@ export function GenerationWorkspaceView({
 
             return {
               ...prev,
+              projectId: persistedProjectId,
+              generationId: persistedGenId,
               status: "completed",
               currentStageIndex: 3,
               stages: updatedStages,

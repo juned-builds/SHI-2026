@@ -163,6 +163,8 @@ export interface GenerationApiResponse {
 
 export interface GenerationSession {
   sessionId: string;
+  projectId?: string;
+  generationId?: string;
   createdAt: string;
   draft: ProjectDraft;
   config: TransformationConfig;
@@ -176,3 +178,45 @@ export interface GenerationSession {
   completedAt?: string;
   error?: string | null;
 }
+
+export interface SerializableSourceMetadata {
+  fileName?: string;
+  fileSize?: number;
+  formattedSize?: string;
+  fileCategory?: FileCategory;
+  charCount: number;
+  wordCount: number;
+  excerpt?: string;
+}
+
+export interface ProjectRecord {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  latestGenerationId: string | null;
+  sourceType: SourceType;
+  sourceText: string;
+  sourceMetadata: SerializableSourceMetadata;
+  draft: ProjectDraft;
+  generationCount: number;
+  deliverableCount: number;
+  status: "draft" | "in_progress" | "completed" | "failed";
+}
+
+export interface GenerationRecord {
+  id: string;
+  projectId: string;
+  projectName: string;
+  generationNumber: number;
+  createdAt: string;
+  completedAt?: string;
+  status: "completed" | "partial" | "failed";
+  modelUsed?: string;
+  config: TransformationConfig;
+  draft: ProjectDraft;
+  deliverables: GeneratedDeliverable[];
+  deliverableCount: number;
+  error?: string | null;
+}
+

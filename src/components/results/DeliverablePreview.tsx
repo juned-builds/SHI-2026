@@ -12,6 +12,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { GeneratedDeliverable, DeliverableDisplayMode } from "../../types";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 export interface DeliverablePreviewProps {
   deliverable: GeneratedDeliverable;
@@ -99,10 +100,10 @@ export function DeliverablePreview({
         </span>
       </div>
 
-      {/* Mode 1: Formatted Markdown / Plaintext Preview */}
+      {/* Mode 1: Formatted Markdown / Rich Document Preview */}
       {displayMode === "preview" && (
-        <div className="prose prose-slate max-w-none text-slate-800 text-xs leading-relaxed whitespace-pre-wrap font-sans bg-white p-2 rounded-lg">
-          {deliverable.content}
+        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs">
+          <MarkdownRenderer content={deliverable.content} />
         </div>
       )}
 

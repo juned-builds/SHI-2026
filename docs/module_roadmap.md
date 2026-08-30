@@ -15,8 +15,8 @@
 | **Module 0.5** | Generation Workspace & Local AI Pipeline Preparation | **Completed** |
 | **Module 0.6** | Gemini GenAI Integration & Core Transformation Deliverables (Summaries, Social, Advisories) | **Completed** |
 | **Module 0.7** | Deliverable Results Workspace, In-Memory Editing & Multi-Format Export Suite | **Completed** |
-| **Module 0.8** | Video Package (Scripts, Scenes, Narration, Subtitles) Generation | Planned |
-| **Module 0.9** | Export, Storage & Project Management | Planned |
+| **Module 0.8** | Product Experience, Rendered Results & Local Project History (IndexedDB, History, Restores) | **Completed** |
+| **Module 0.9** | Video Package (Scripts, Scenes, Narration, Subtitles) Generation | Planned |
 | **Module 1.0** | Final SIH Grand Finale Polish, Testing & Production Packaging | Planned |
 
 ---

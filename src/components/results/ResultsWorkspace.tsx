@@ -23,6 +23,11 @@ import {
   sanitizeFilename,
 } from "../../utils/exportHelpers";
 import { DELIVERABLES_CATALOG } from "../../constants/transformationOptions";
+import {
+  updateDeliverableInGeneration,
+  resetDeliverableInGeneration,
+  saveGenerationAndSyncProject,
+} from "../../services/db";
 
 export interface ResultsWorkspaceProps {
   draft: ProjectDraft | null;
@@ -114,6 +119,14 @@ export function ResultsWorkspace({
 
     updateSessionDeliverables(updated);
     setIsEditing(false);
+
+    // Persist edit to IndexedDB
+    const targetGenId = session?.generationId || session?.sessionId;
+    if (targetGenId) {
+      updateDeliverableInGeneration(targetGenId, selectedId, newContent).catch((err) => {
+        console.warn("[ResultsWorkspace] Could not persist edit to IndexedDB:", err);
+      });
+    }
   };
 
   // Handle reset deliverable back to original generated version
@@ -132,6 +145,14 @@ export function ResultsWorkspace({
 
     updateSessionDeliverables(updated);
     setIsEditing(false);
+
+    // Persist reset to IndexedDB
+    const targetGenId = session?.generationId || session?.sessionId;
+    if (targetGenId) {
+      resetDeliverableInGeneration(targetGenId, selectedId).catch((err) => {
+        console.warn("[ResultsWorkspace] Could not persist reset to IndexedDB:", err);
+      });
+    }
   };
 
   // Handle single deliverable regeneration
@@ -163,6 +184,18 @@ export function ResultsWorkspace({
       updateSessionDeliverables(updated);
       setIsRegenerateDialogOpen(false);
       setIsEditing(false);
+
+      // Persist regenerated deliverable in IndexedDB
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        saveGenerationAndSyncProject(draft, config, updated, {
+          projectId: session?.projectId,
+          generationId: targetGenId,
+          modelUsed: session?.modelUsed,
+        }).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not persist regenerated deliverable:", err);
+        });
+      }
     } catch (err: any) {
       setSingleRegenError(err.message || "Failed to regenerate this deliverable.");
     } finally {
