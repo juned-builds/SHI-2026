@@ -11,6 +11,8 @@ import { SettingsView } from "./components/pages/SettingsView";
 import { NewProjectView } from "./components/pages/NewProjectView";
 import { ConfigureView } from "./components/pages/ConfigureView";
 import { GenerationWorkspaceView } from "./components/pages/GenerationWorkspaceView";
+import { ResultsWorkspace } from "./components/results/ResultsWorkspace";
+import { PageContainer } from "./components/layout/PageContainer";
 import { ProjectDraft, TransformationConfig, GenerationSession } from "./types";
 
 export default function App() {
@@ -49,6 +51,14 @@ export default function App() {
           { label: "Configure", id: "projects/new/configure" },
           { label: "Generation Workspace" },
         ];
+      case "projects/results":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Projects", id: "projects" },
+          { label: "New Project", id: "projects/new" },
+          { label: "Configure", id: "projects/new/configure" },
+          { label: "Results Workspace" },
+        ];
       case "settings":
         return [
           { label: "Workspace", id: "dashboard" },
@@ -73,6 +83,8 @@ export default function App() {
         return "Configure Transformation";
       case "projects/generate":
         return "Generation Workspace";
+      case "projects/results":
+        return "Deliverable Results Workspace";
       case "settings":
         return "Settings";
       case "dashboard":
@@ -141,6 +153,18 @@ export default function App() {
           onNavigate={handleNavigate}
           onCancel={handleCancelProject}
         />
+      )}
+      {currentRoute === "projects/results" && (
+        <PageContainer maxWidth="default">
+          <ResultsWorkspace
+            draft={projectDraft}
+            config={transformationConfig}
+            session={generationSession}
+            onUpdateSession={setGenerationSession}
+            onNavigate={handleNavigate}
+            onRegenerateAll={() => setCurrentRoute("projects/generate")}
+          />
+        </PageContainer>
       )}
       {currentRoute === "settings" && <SettingsView />}
     </AppShell>

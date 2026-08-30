@@ -27,21 +27,14 @@ export interface GenerationPayload {
 
 /**
  * Resolves the active backend API base URL:
- * 1. Explicit environment variable: VITE_API_BASE_URL (e.g. http://localhost:8000)
- * 2. Fallback to direct localhost:8000 if in local browser development
- * 3. Relative proxy path /api
+ * 1. Explicit environment variable: VITE_API_BASE_URL
+ * 2. Relative path for unified full-stack server
  */
 export function getApiBaseUrl(): string {
-  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
   if (envUrl && typeof envUrl === "string" && envUrl.trim()) {
     return envUrl.trim().replace(/\/$/, "");
   }
-
-  // If running locally in browser on localhost:3000, call backend directly or via proxy
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-    return "http://localhost:8000";
-  }
-
   return "";
 }
 
@@ -127,4 +120,26 @@ export async function executeTransformationApi(
 
   const result: GenerationApiResponse = await response.json();
   return result;
+}
+
+/**
+ * Regenerate a single specific deliverable reusing existing draft and config.
+ */
+export async function regenerateSingleDeliverableApi(
+  draft: ProjectDraft,
+  config: TransformationConfig,
+  deliverableId: string,
+  signal?: AbortSignal
+): Promise<GeneratedDeliverable> {
+  const singleConfig: TransformationConfig = {
+    ...config,
+    deliverables: [deliverableId as any],
+  };
+
+  const res = await executeTransformationApi(draft, singleConfig, signal);
+  const found = res.deliverables.find((d) => d.deliverableId === deliverableId);
+  if (!found) {
+    throw new Error(`Deliverable '${deliverableId}' was not returned in the regeneration output.`);
+  }
+  return found;
 }

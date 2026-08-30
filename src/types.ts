@@ -142,7 +142,14 @@ export interface GeneratedDeliverable {
   structuredData?: Record<string, any> | null;
   status: "completed" | "failed";
   error?: string | null;
+  isEdited?: boolean;
+  originalContent?: string;
+  originalStructuredData?: Record<string, any> | null;
+  generatedAt?: string;
+  lastEditedAt?: string;
 }
+
+export type DeliverableDisplayMode = "preview" | "structured" | "raw_json";
 
 export interface GenerationApiResponse {
   success: boolean;

@@ -1,3 +1,4 @@
+import os
 import json
 from typing import List, Union, Optional
 from pydantic import field_validator
@@ -7,7 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Core application settings and configuration."""
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "backend/.env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
@@ -25,8 +26,8 @@ class Settings(BaseSettings):
     ]
 
     # Gemini GenAI Settings (Server-side only)
-    GEMINI_API_KEY: Optional[str] = None
-    GEMINI_MODEL: str = "gemini-3.7-flash"
+    GEMINI_API_KEY: Optional[str] = os.environ.get("GEMINI_API_KEY")
+    GEMINI_MODEL: str = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
     MAX_SOURCE_LENGTH: int = 150000
 
     @property

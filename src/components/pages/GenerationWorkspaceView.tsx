@@ -25,6 +25,7 @@ import { EmptyState } from "../ui/EmptyState";
 import { GenerationSummaryCard } from "../generation/GenerationSummaryCard";
 import { PipelineProgressTracker } from "../generation/PipelineProgressTracker";
 import { GeneratedDeliverablesViewer } from "../generation/GeneratedDeliverablesViewer";
+import { ResultsWorkspace } from "../results/ResultsWorkspace";
 import {
   INITIAL_PIPELINE_STAGES,
   createDeliverablePipelineItems,
@@ -374,8 +375,8 @@ export function GenerationWorkspaceView({
           </div>
         )}
 
-        {/* If generating or completed or failed, show pipeline stages tracker */}
-        {(isGenerating || isCompleted || isFailed) && (
+        {/* If generating or failed, show pipeline stages tracker */}
+        {(isGenerating || isFailed) && (
           <PipelineProgressTracker
             stages={session?.stages || INITIAL_PIPELINE_STAGES}
             currentStageIndex={session?.currentStageIndex || 0}
@@ -384,83 +385,79 @@ export function GenerationWorkspaceView({
           />
         )}
 
-        {/* Generated Deliverables Result Viewer */}
+        {/* Deliverables Results Workspace */}
         {isCompleted && session?.generatedDeliverables && (
-          <GeneratedDeliverablesViewer
-            deliverables={session.generatedDeliverables}
-            modelUsed={session.modelUsed}
-            sessionId={session.sessionId}
-            generatedAt={session.completedAt}
+          <ResultsWorkspace
+            draft={draft}
+            config={config}
+            session={session}
+            onUpdateSession={onUpdateSession}
+            onNavigate={onNavigate}
+            onRegenerateAll={handleStartTransformation}
           />
         )}
 
-        {/* Source & Configuration Summary */}
-        <GenerationSummaryCard
-          draft={draft}
-          config={config}
-          onEditSource={() => onNavigate("projects/new")}
-          onEditConfig={() => onNavigate("projects/new/configure")}
-          isLocked={isGenerating}
-        />
+        {/* Source & Configuration Summary (when idle or generating) */}
+        {!isCompleted && (
+          <GenerationSummaryCard
+            draft={draft}
+            config={config}
+            onEditSource={() => onNavigate("projects/new")}
+            onEditConfig={() => onNavigate("projects/new/configure")}
+            isLocked={isGenerating}
+          />
+        )}
 
-        {/* Action Controls Bar */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-8 border-t border-slate-200">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onNavigate("projects/new/configure")}
-              disabled={isGenerating}
-              className="w-full sm:w-auto text-xs"
-            >
-              Edit Configuration
-            </Button>
-
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onNavigate("projects")}
-              disabled={isGenerating}
-              className="w-full sm:w-auto text-xs text-slate-600"
-            >
-              Back to Projects
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {isGenerating ? (
+        {/* Action Controls Bar (when idle or generating or failed) */}
+        {!isCompleted && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 pb-8 border-t border-slate-200">
+            <div className="flex items-center gap-3 w-full sm:w-auto">
               <Button
                 type="button"
                 variant="outline"
-                icon={<XCircle className="w-4 h-4 text-red-500" />}
-                onClick={handleCancelTransformation}
-                className="w-full sm:w-auto text-xs border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => onNavigate("projects/new/configure")}
+                disabled={isGenerating}
+                className="w-full sm:w-auto text-xs"
               >
-                Cancel Transformation
+                Edit Configuration
               </Button>
-            ) : isCompleted ? (
+
               <Button
                 type="button"
-                variant="primary"
-                icon={<RefreshCw className="w-3.5 h-3.5" />}
-                onClick={handleStartTransformation}
-                className="w-full sm:w-auto text-xs shadow-xs"
+                variant="ghost"
+                onClick={() => onNavigate("projects")}
+                disabled={isGenerating}
+                className="w-full sm:w-auto text-xs text-slate-600"
               >
-                Regenerate Deliverables
+                Back to Projects
               </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="primary"
-                icon={<Play className="w-4 h-4 fill-current" />}
-                onClick={handleStartTransformation}
-                className="w-full sm:w-auto text-sm shadow-xs hover:shadow-sm"
-              >
-                Start Transformation
-              </Button>
-            )}
+            </div>
+
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              {isGenerating ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  icon={<XCircle className="w-4 h-4 text-red-500" />}
+                  onClick={handleCancelTransformation}
+                  className="w-full sm:w-auto text-xs border-red-200 text-red-700 hover:bg-red-50"
+                >
+                  Cancel Transformation
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="primary"
+                  icon={<Play className="w-4 h-4 fill-current" />}
+                  onClick={handleStartTransformation}
+                  className="w-full sm:w-auto text-sm shadow-xs hover:shadow-sm"
+                >
+                  Start Transformation
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </PageContainer>
   );
