@@ -1,10 +1,13 @@
 import React from "react";
+import { Loader2 } from "lucide-react";
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "outline" | "ghost" | "destructive";
   size?: "sm" | "md" | "lg";
   icon?: React.ReactNode;
   iconPosition?: "left" | "right";
+  isLoading?: boolean;
+  isloading?: boolean;
   children?: React.ReactNode;
 }
 
@@ -15,6 +18,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       size = "md",
       icon,
       iconPosition = "left",
+      isLoading = false,
+      isloading = false,
       className = "",
       disabled,
       children,
@@ -22,6 +27,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
+    const loading = Boolean(isLoading || isloading);
+    const isDisabled = disabled || loading;
+
     const baseStyles =
       "inline-flex items-center justify-center font-medium rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none cursor-pointer";
 
@@ -47,13 +55,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        disabled={disabled}
+        disabled={isDisabled}
         className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         {...props}
       >
-        {icon && iconPosition === "left" && <span className="shrink-0">{icon}</span>}
+        {loading ? (
+          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+        ) : (
+          icon && iconPosition === "left" && <span className="shrink-0">{icon}</span>
+        )}
         {children && <span>{children}</span>}
-        {icon && iconPosition === "right" && <span className="shrink-0">{icon}</span>}
+        {!loading && icon && iconPosition === "right" && (
+          <span className="shrink-0">{icon}</span>
+        )}
       </button>
     );
   }

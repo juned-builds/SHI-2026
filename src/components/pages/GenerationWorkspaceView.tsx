@@ -209,43 +209,39 @@ export function GenerationWorkspaceView({
 
           // Complete all stages WITHOUT automatically writing to IndexedDB.
           // The generation produces an Unsaved Session for user inspection and review.
-          setSession((prev) => {
-            if (!prev) return null;
-            const updatedStages: PipelineStage[] = prev.stages.map((s) => ({
-              ...s,
-              status: "completed",
-            }));
+          const completedStages: PipelineStage[] = INITIAL_PIPELINE_STAGES.map((s) => ({
+            ...s,
+            status: "completed",
+          }));
 
-            const updatedDeliverables = prev.deliverablesPipeline.map((item) => {
-              const matching = apiResponse.deliverables.find((d) => d.deliverableId === item.deliverableId);
-              return {
-                ...item,
-                status: matching?.status === "completed" ? ("ready" as const) : ("failed" as const),
-                promptSchemaReady: true,
-              };
-            });
-
-            const completedSession: GenerationSession = {
-              ...prev,
-              status: "completed",
-              persistenceStatus: Boolean(prev.projectId) ? "saved" : "unsaved",
-              isSaved: Boolean(prev.projectId),
-              currentStageIndex: 3,
-              stages: updatedStages,
-              deliverablesPipeline: updatedDeliverables,
-              generatedDeliverables: apiResponse.deliverables,
-              modelUsed: apiResponse.model || "gemini-3.7-flash",
-              completedAt: apiResponse.generatedAt,
+          const completedDeliverables = freshDeliverables.map((item) => {
+            const matching = apiResponse.deliverables.find((d) => d.deliverableId === item.deliverableId);
+            return {
+              ...item,
+              status: matching?.status === "completed" ? ("ready" as const) : ("failed" as const),
+              promptSchemaReady: true,
             };
-
-            if (onUpdateSession) {
-              onUpdateSession(completedSession);
-            }
-
-            return completedSession;
           });
 
+          const completedSession: GenerationSession = {
+            ...activeSession,
+            status: "completed",
+            persistenceStatus: Boolean(activeSession.projectId) ? "saved" : "unsaved",
+            isSaved: Boolean(activeSession.projectId),
+            currentStageIndex: 3,
+            stages: completedStages,
+            deliverablesPipeline: completedDeliverables,
+            generatedDeliverables: apiResponse.deliverables,
+            modelUsed: apiResponse.model || "gemini-3.7-flash",
+            completedAt: apiResponse.generatedAt,
+          };
+
+          setSession(completedSession);
           setProgressPercent(100);
+
+          if (onUpdateSession) {
+            onUpdateSession(completedSession);
+          }
         } catch (err: any) {
           if (controller.signal.aborted) {
             return;
@@ -254,18 +250,24 @@ export function GenerationWorkspaceView({
           const errMsg = err.message || "An unexpected error occurred during AI transformation.";
           setErrorMessage(errMsg);
 
-          setSession((prev) => {
-            if (!prev) return null;
-            const updatedStages = [...prev.stages];
-            if (updatedStages[2]) updatedStages[2].status = "failed";
-            return {
-              ...prev,
-              status: "failed",
-              stages: updatedStages,
-              error: errMsg,
-            };
-          });
+          const failedStages: PipelineStage[] = freshStages.map((s, idx) => ({
+            ...s,
+            status: idx < 2 ? ("completed" as const) : idx === 2 ? ("failed" as const) : ("pending" as const),
+          }));
+
+          const failedSession: GenerationSession = {
+            ...activeSession,
+            status: "failed",
+            stages: failedStages,
+            error: errMsg,
+          };
+
+          setSession(failedSession);
           setProgressPercent(0);
+
+          if (onUpdateSession) {
+            onUpdateSession(failedSession);
+          }
         }
       }, 400);
     }, 300);
