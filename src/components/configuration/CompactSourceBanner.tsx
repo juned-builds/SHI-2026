@@ -38,7 +38,7 @@ export function CompactSourceBanner({
               </span>
               <Badge variant="success" className="gap-1 py-0 px-2 text-[11px]">
                 <CheckCircle2 className="w-3 h-3" />
-                Validated & Ready
+                Text Extracted & Ready
               </Badge>
             </div>
 
@@ -51,7 +51,8 @@ export function CompactSourceBanner({
                 {isFile && draft.sourceFile ? (
                   <>
                     <strong className="font-medium text-slate-800">{sourceName}</strong> (
-                    {getFileTypeLabel(draft.sourceFile.category, draft.sourceFile.file)},{" "}
+                    {getFileTypeLabel(draft.sourceFile.category, draft.sourceFile.file)} •{" "}
+                    {draft.wordCount > 0 ? `${draft.wordCount.toLocaleString()} words, ` : ""}
                     {draft.sourceFile.formattedSize})
                   </>
                 ) : (

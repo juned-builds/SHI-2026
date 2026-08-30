@@ -6,6 +6,7 @@ import {
   GeneratedDeliverable,
   DeliverableId,
   DeliverableDisplayMode,
+  PersistenceStatus,
 } from "../../types";
 import { Card } from "../ui/Card";
 import { ResultsHeader } from "./ResultsHeader";
@@ -15,6 +16,8 @@ import { DeliverablePreview } from "./DeliverablePreview";
 import { DeliverableEditor } from "./DeliverableEditor";
 import { ExportControls } from "./ExportControls";
 import { RegenerateDeliverableDialog } from "./RegenerateDeliverableDialog";
+import { SaveProjectModal } from "./SaveProjectModal";
+import { DiscardProjectModal } from "./DiscardProjectModal";
 import { ResultsEmptyState } from "./ResultsEmptyState";
 import { regenerateSingleDeliverableApi } from "../../services/generationApi";
 import {
@@ -27,6 +30,7 @@ import {
   updateDeliverableInGeneration,
   resetDeliverableInGeneration,
   saveGenerationAndSyncProject,
+  renameProject as dbRenameProject,
 } from "../../services/db";
 
 export interface ResultsWorkspaceProps {
@@ -37,6 +41,7 @@ export interface ResultsWorkspaceProps {
   onUpdateSession?: (session: GenerationSession) => void;
   onNavigate: (route: string) => void;
   onRegenerateAll?: () => void;
+  onDiscard?: () => void;
 }
 
 export function ResultsWorkspace({
@@ -47,6 +52,7 @@ export function ResultsWorkspace({
   onUpdateSession,
   onNavigate,
   onRegenerateAll,
+  onDiscard,
 }: ResultsWorkspaceProps) {
   const initialDeliverables: GeneratedDeliverable[] =
     session?.generatedDeliverables || [];
@@ -61,7 +67,19 @@ export function ResultsWorkspace({
   const [isRegeneratingSingle, setIsRegeneratingSingle] = useState<boolean>(false);
   const [singleRegenError, setSingleRegenError] = useState<string | null>(null);
 
-  // Keep local deliverables synced with parent session if it changes externally
+  // Persistence State Machine
+  const [persistenceStatus, setPersistenceStatus] = useState<PersistenceStatus>(() => {
+    if (session?.persistenceStatus) return session.persistenceStatus;
+    if (session?.projectId || session?.isSaved || isOpenedFromHistory) return "saved";
+    return "unsaved";
+  });
+
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState<boolean>(false);
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [saveSuccessNotification, setSaveSuccessNotification] = useState<string | null>(null);
+
+  // Keep local deliverables and persistence status synced with session updates
   useEffect(() => {
     if (session?.generatedDeliverables && session.generatedDeliverables.length > 0) {
       setDeliverables(session.generatedDeliverables);
@@ -69,15 +87,23 @@ export function ResultsWorkspace({
         setSelectedId(session.generatedDeliverables[0].deliverableId);
       }
     }
-  }, [session?.generatedDeliverables]);
+    if (session?.persistenceStatus) {
+      setPersistenceStatus(session.persistenceStatus);
+    } else if (session?.projectId || session?.isSaved || isOpenedFromHistory) {
+      setPersistenceStatus((prev) => (prev === "dirty" ? "dirty" : "saved"));
+    }
+  }, [session?.generatedDeliverables, session?.persistenceStatus, session?.projectId, session?.isSaved, isOpenedFromHistory]);
 
   // Sync edits back up to session
-  const updateSessionDeliverables = (updated: GeneratedDeliverable[]) => {
+  const updateSessionDeliverables = (updated: GeneratedDeliverable[], newStatus?: PersistenceStatus) => {
     setDeliverables(updated);
+    const statusToUse = newStatus !== undefined ? newStatus : persistenceStatus;
     if (session && onUpdateSession) {
       onUpdateSession({
         ...session,
         generatedDeliverables: updated,
+        persistenceStatus: statusToUse,
+        isSaved: statusToUse === "saved" || statusToUse === "dirty",
       });
     }
   };
@@ -119,15 +145,21 @@ export function ResultsWorkspace({
       return d;
     });
 
-    updateSessionDeliverables(updated);
+    const isProjectAlreadySaved = Boolean(session?.projectId || session?.isSaved || persistenceStatus === "saved" || persistenceStatus === "dirty");
+    const nextStatus: PersistenceStatus = isProjectAlreadySaved ? "dirty" : "unsaved";
+    setPersistenceStatus(nextStatus);
+
+    updateSessionDeliverables(updated, nextStatus);
     setIsEditing(false);
 
-    // Persist edit to IndexedDB
-    const targetGenId = session?.generationId || session?.sessionId;
-    if (targetGenId) {
-      updateDeliverableInGeneration(targetGenId, selectedId, newContent).catch((err) => {
-        console.warn("[ResultsWorkspace] Could not persist edit to IndexedDB:", err);
-      });
+    // Persist edit to IndexedDB ONLY if the project has already been saved to DB
+    if (isProjectAlreadySaved) {
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        updateDeliverableInGeneration(targetGenId, selectedId, newContent).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not persist edit to IndexedDB:", err);
+        });
+      }
     }
   };
 
@@ -145,15 +177,22 @@ export function ResultsWorkspace({
       return d;
     });
 
-    updateSessionDeliverables(updated);
+    const hasAnyOtherEdits = updated.some((d) => d.isEdited);
+    const isProjectAlreadySaved = Boolean(session?.projectId || session?.isSaved);
+    const nextStatus: PersistenceStatus = isProjectAlreadySaved ? (hasAnyOtherEdits ? "dirty" : "saved") : "unsaved";
+    setPersistenceStatus(nextStatus);
+
+    updateSessionDeliverables(updated, nextStatus);
     setIsEditing(false);
 
-    // Persist reset to IndexedDB
-    const targetGenId = session?.generationId || session?.sessionId;
-    if (targetGenId) {
-      resetDeliverableInGeneration(targetGenId, selectedId).catch((err) => {
-        console.warn("[ResultsWorkspace] Could not persist reset to IndexedDB:", err);
-      });
+    // Persist reset to IndexedDB ONLY if saved
+    if (isProjectAlreadySaved) {
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        resetDeliverableInGeneration(targetGenId, selectedId).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not persist reset to IndexedDB:", err);
+        });
+      }
     }
   };
 
@@ -187,21 +226,128 @@ export function ResultsWorkspace({
       setIsRegenerateDialogOpen(false);
       setIsEditing(false);
 
-      // Persist regenerated deliverable in IndexedDB
-      const targetGenId = session?.generationId || session?.sessionId;
-      if (targetGenId) {
-        saveGenerationAndSyncProject(draft, config, updated, {
-          projectId: session?.projectId,
-          generationId: targetGenId,
-          modelUsed: session?.modelUsed,
-        }).catch((err) => {
-          console.warn("[ResultsWorkspace] Could not persist regenerated deliverable:", err);
-        });
+      // Persist regenerated deliverable in IndexedDB ONLY if saved
+      const isProjectAlreadySaved = Boolean(session?.projectId || session?.isSaved);
+      if (isProjectAlreadySaved) {
+        const targetGenId = session?.generationId || session?.sessionId;
+        if (targetGenId) {
+          saveGenerationAndSyncProject(draft, config, updated, {
+            projectId: session?.projectId,
+            generationId: targetGenId,
+            modelUsed: session?.modelUsed,
+          }).catch((err) => {
+            console.warn("[ResultsWorkspace] Could not persist regenerated deliverable:", err);
+          });
+        }
       }
     } catch (err: any) {
       setSingleRegenError(err.message || "Failed to regenerate this deliverable.");
     } finally {
       setIsRegeneratingSingle(false);
+    }
+  };
+
+  // Handle Explicit "Save Project" (First Save or Rename)
+  const handleConfirmSaveProject = async (customProjectName: string) => {
+    if (isSaving) return; // Prevent double-submit
+    setIsSaving(true);
+    setPersistenceStatus("saving");
+
+    try {
+      const updatedDraft: ProjectDraft = {
+        ...draft,
+        name: customProjectName.trim() || draft.name,
+      };
+
+      const targetProjectId = session?.projectId;
+      const targetGenerationId = session?.generationId || session?.sessionId;
+
+      const saved = await saveGenerationAndSyncProject(
+        updatedDraft,
+        config,
+        deliverables,
+        {
+          projectId: targetProjectId,
+          generationId: targetGenerationId,
+          modelUsed: session?.modelUsed || "gemini-3.7-flash",
+        }
+      );
+
+      setPersistenceStatus("saved");
+
+      if (session && onUpdateSession) {
+        onUpdateSession({
+          ...session,
+          projectId: saved.project.id,
+          generationId: saved.generation.id,
+          draft: updatedDraft,
+          persistenceStatus: "saved",
+          isSaved: true,
+        });
+      }
+
+      setIsSaveModalOpen(false);
+      setSaveSuccessNotification(`Project "${saved.project.name}" saved to My Projects.`);
+      setTimeout(() => setSaveSuccessNotification(null), 5000);
+    } catch (err: any) {
+      console.error("[ResultsWorkspace] Failed to save project:", err);
+      setPersistenceStatus("save_failed");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle Quick "Save Changes" for Dirty State
+  const handleSaveChanges = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setPersistenceStatus("saving");
+
+    try {
+      const targetProjectId = session?.projectId;
+      const targetGenerationId = session?.generationId || session?.sessionId;
+
+      const saved = await saveGenerationAndSyncProject(
+        draft,
+        config,
+        deliverables,
+        {
+          projectId: targetProjectId,
+          generationId: targetGenerationId,
+          modelUsed: session?.modelUsed || "gemini-3.7-flash",
+        }
+      );
+
+      setPersistenceStatus("saved");
+
+      if (session && onUpdateSession) {
+        onUpdateSession({
+          ...session,
+          projectId: saved.project.id,
+          generationId: saved.generation.id,
+          draft,
+          persistenceStatus: "saved",
+          isSaved: true,
+        });
+      }
+
+      setSaveSuccessNotification(`Changes saved to project "${saved.project.name}".`);
+      setTimeout(() => setSaveSuccessNotification(null), 4000);
+    } catch (err: any) {
+      console.error("[ResultsWorkspace] Failed to save changes:", err);
+      setPersistenceStatus("save_failed");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle Discard Transformation
+  const handleConfirmDiscard = () => {
+    setIsDiscardModalOpen(false);
+    if (onDiscard) {
+      onDiscard();
+    } else {
+      onNavigate("projects");
     }
   };
 
@@ -218,23 +364,49 @@ export function ResultsWorkspace({
     downloadTextFile(filename, fullMarkdown);
   };
 
+  const hasEdits = deliverables.some((d) => d.isEdited);
+
   return (
     <div className="space-y-6">
+      {/* Toast notification */}
+      {saveSuccessNotification && (
+        <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-xl text-xs flex items-center justify-between shadow-xs animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-semibold">{saveSuccessNotification}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveSuccessNotification(null)}
+            className="text-emerald-700 hover:text-emerald-950 font-bold ml-2 cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Top Header & Status Banner */}
       <ResultsHeader
         draft={draft}
         deliverables={deliverables}
         modelUsed={session?.modelUsed || "gemini-3.7-flash"}
         sessionId={session?.sessionId}
+        persistenceStatus={persistenceStatus}
+        isSaved={persistenceStatus === "saved" || persistenceStatus === "dirty"}
+        isSaving={isSaving}
         isOpenedFromHistory={isOpenedFromHistory}
         onNavigate={onNavigate}
         onExportAll={handleExportAll}
+        onSaveProject={() => setIsSaveModalOpen(true)}
+        onSaveChanges={handleSaveChanges}
+        onDiscardProject={() => setIsDiscardModalOpen(true)}
+        onRenameProject={() => setIsSaveModalOpen(true)}
         onRegenerateAll={onRegenerateAll}
       />
 
       {/* Main Dual-Column Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Navigation Sidebar / Mobile Selector */}
+        {/* Navigation Sidebar / Deliverable Selector */}
         <div className="lg:col-span-4 xl:col-span-3">
           <Card className="p-3 shadow-xs border-slate-200">
             <DeliverableNavigation
@@ -265,9 +437,9 @@ export function ResultsWorkspace({
                 <button
                   type="button"
                   onClick={() => setIsEditing(!isEditing)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                     isEditing
-                      ? "bg-amber-100 border-amber-300 text-amber-900 shadow-2xs"
+                      ? "bg-amber-100 border-amber-300 text-amber-900 shadow-2xs font-semibold"
                       : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                   }`}
                 >
@@ -322,6 +494,24 @@ export function ResultsWorkspace({
           </Card>
         </div>
       </div>
+
+      {/* Save Project Modal */}
+      <SaveProjectModal
+        isOpen={isSaveModalOpen}
+        draft={draft}
+        deliverables={deliverables}
+        isSaving={isSaving}
+        onSave={handleConfirmSaveProject}
+        onClose={() => setIsSaveModalOpen(false)}
+      />
+
+      {/* Discard Project Modal */}
+      <DiscardProjectModal
+        isOpen={isDiscardModalOpen}
+        hasEdits={hasEdits}
+        onConfirm={handleConfirmDiscard}
+        onClose={() => setIsDiscardModalOpen(false)}
+      />
 
       {/* Regeneration Modal Dialog */}
       <RegenerateDeliverableDialog

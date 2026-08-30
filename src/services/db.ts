@@ -153,7 +153,15 @@ export async function getAllProjects(): Promise<ProjectRecord[]> {
       const request = store.getAll();
 
       request.onsuccess = () => {
-        const records: ProjectRecord[] = request.result || [];
+        const rawRecords: ProjectRecord[] = request.result || [];
+        // Distinct map by ID to eliminate any duplicate IDs
+        const distinctMap = new Map<string, ProjectRecord>();
+        for (const rec of rawRecords) {
+          if (!distinctMap.has(rec.id) || new Date(rec.updatedAt).getTime() > new Date(distinctMap.get(rec.id)!.updatedAt).getTime()) {
+            distinctMap.set(rec.id, rec);
+          }
+        }
+        const records = Array.from(distinctMap.values());
         records.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
         resolve(records);
       };
@@ -236,6 +244,53 @@ export async function saveProject(project: ProjectRecord): Promise<ProjectRecord
       resolve(cleanProject);
     }
   });
+}
+
+/**
+ * Renames a project and updates associated generation records with the new project name.
+ */
+export async function renameProject(projectId: string, newName: string): Promise<ProjectRecord | null> {
+  if (!projectId || !newName || !newName.trim()) return null;
+  const project = await getProject(projectId);
+  if (!project) return null;
+
+  const trimmedName = newName.trim();
+  const updatedProject: ProjectRecord = {
+    ...project,
+    name: trimmedName,
+    draft: {
+      ...project.draft,
+      name: trimmedName,
+    },
+    updatedAt: new Date().toISOString(),
+  };
+
+  await saveProject(updatedProject);
+
+  // Sync project name to in-memory and persisted generations for this project
+  const gens = await getGenerationsForProject(projectId);
+  for (const gen of gens) {
+    const updatedGen: GenerationRecord = {
+      ...gen,
+      projectName: trimmedName,
+    };
+    memoryStore.generations.set(gen.id, updatedGen);
+  }
+
+  const db = await getDatabase();
+  if (db && isIndexedDbAvailable) {
+    try {
+      const tx = db.transaction(STORES.GENERATIONS, "readwrite");
+      const store = tx.objectStore(STORES.GENERATIONS);
+      for (const gen of gens) {
+        store.put({ ...gen, projectName: trimmedName });
+      }
+    } catch (err) {
+      console.warn("[LocalDB] renameProject generation update warning:", err);
+    }
+  }
+
+  return updatedProject;
 }
 
 /**
@@ -356,8 +411,12 @@ export async function getGeneration(generationId: string): Promise<GenerationRec
   });
 }
 
+// In-flight mutex locks for atomic idempotency
+const inFlightSaveLocks = new Map<string, Promise<{ project: ProjectRecord; generation: GenerationRecord }>>();
+
 /**
  * Persists a completed generation and automatically updates or creates its associated Project record.
+ * Fully atomic, idempotent, and duplicate-safe.
  */
 export async function saveGenerationAndSyncProject(
   draft: ProjectDraft,
@@ -370,99 +429,151 @@ export async function saveGenerationAndSyncProject(
     error?: string | null;
   }
 ): Promise<{ project: ProjectRecord; generation: GenerationRecord }> {
-  const now = new Date().toISOString();
-  const sanitizedDraft = sanitizeDraftForStorage(draft);
-  const sourceMetadata = extractSourceMetadata(sanitizedDraft);
-
-  // 1. Resolve or Create Project ID
-  let projectId = options?.projectId;
-  let existingProject: ProjectRecord | null = null;
-
-  if (projectId) {
-    existingProject = await getProject(projectId);
+  // Deterministic lock key to prevent concurrent double-submission race conditions
+  const lockKey = `${options?.projectId || "new"}_${options?.generationId || "new"}_${draft.name || ""}`;
+  const existingLock = inFlightSaveLocks.get(lockKey);
+  if (existingLock) {
+    return existingLock;
   }
 
-  if (!existingProject) {
-    // Generate stable project ID
-    projectId = projectId || `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    existingProject = {
-      id: projectId,
-      name: sanitizedDraft.name || "Untitled Transformation Project",
-      createdAt: now,
+  const savePromise = (async () => {
+    const now = new Date().toISOString();
+    const sanitizedDraft = sanitizeDraftForStorage(draft);
+    const sourceMetadata = extractSourceMetadata(sanitizedDraft);
+
+    // 1. Resolve or Create Project ID
+    let projectId = options?.projectId;
+    let existingProject: ProjectRecord | null = null;
+
+    if (projectId) {
+      existingProject = await getProject(projectId);
+    }
+
+    if (!existingProject) {
+      // Generate stable project ID if none exists
+      projectId = projectId || `proj_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      existingProject = {
+        id: projectId,
+        name: sanitizedDraft.name || "Untitled Transformation Project",
+        createdAt: now,
+        updatedAt: now,
+        latestGenerationId: null,
+        sourceType: sanitizedDraft.sourceType,
+        sourceText: sanitizedDraft.sourceText,
+        sourceMetadata,
+        draft: sanitizedDraft,
+        generationCount: 0,
+        deliverableCount: deliverables.length,
+        status: "completed",
+      };
+    }
+
+    // 2. Fetch existing generations for this project
+    const currentGenerations = await getGenerationsForProject(existingProject.id);
+
+    // 3. Resolve Generation ID & determine if this is an update vs new creation
+    const generationId =
+      options?.generationId || `gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const existingGeneration = await getGeneration(generationId);
+
+    const completedDeliverablesCount = deliverables.filter((d) => d.status === "completed").length;
+    const genStatus =
+      completedDeliverablesCount === deliverables.length
+        ? "completed"
+        : completedDeliverablesCount > 0
+        ? "partial"
+        : "failed";
+
+    let generationRecord: GenerationRecord;
+    let totalProjectGenerations = currentGenerations.length;
+
+    if (existingGeneration) {
+      // UPDATE SEMANTICS: In-place update of existing generation
+      generationRecord = {
+        ...existingGeneration,
+        projectName: sanitizedDraft.name || existingProject.name,
+        completedAt: now,
+        status: genStatus,
+        modelUsed: options?.modelUsed || existingGeneration.modelUsed || "gemini-3.7-flash",
+        config,
+        draft: sanitizedDraft,
+        deliverables,
+        deliverableCount: deliverables.length,
+        error: options?.error !== undefined ? options.error : existingGeneration.error,
+      };
+    } else {
+      // CREATE SEMANTICS: New generation record
+      const otherGens = currentGenerations.filter((g) => g.id !== generationId);
+      const generationNumber = otherGens.length + 1;
+      totalProjectGenerations = generationNumber;
+
+      generationRecord = {
+        id: generationId,
+        projectId: existingProject.id,
+        projectName: sanitizedDraft.name || existingProject.name,
+        generationNumber,
+        createdAt: now,
+        completedAt: now,
+        status: genStatus,
+        modelUsed: options?.modelUsed || "gemini-3.7-flash",
+        config,
+        draft: sanitizedDraft,
+        deliverables,
+        deliverableCount: deliverables.length,
+        error: options?.error || null,
+      };
+    }
+
+    // 4. Update Parent Project Record
+    const updatedProject: ProjectRecord = {
+      ...existingProject,
+      name: sanitizedDraft.name || existingProject.name,
       updatedAt: now,
-      latestGenerationId: null,
-      sourceType: sanitizedDraft.sourceType,
-      sourceText: sanitizedDraft.sourceText,
+      latestGenerationId: generationId,
+      sourceText: sanitizedDraft.sourceText || existingProject.sourceText,
       sourceMetadata,
       draft: sanitizedDraft,
-      generationCount: 0,
+      generationCount: Math.max(existingProject.generationCount || 0, totalProjectGenerations, 1),
       deliverableCount: deliverables.length,
-      status: "completed",
+      status: genStatus === "completed" ? "completed" : "in_progress",
     };
-  }
 
-  // 2. Fetch current generation count for this project
-  const currentGenerations = await getGenerationsForProject(existingProject.id);
-  const generationNumber = currentGenerations.length + 1;
+    // 5. Atomic write to memoryStore
+    memoryStore.generations.set(generationRecord.id, generationRecord);
+    memoryStore.projects.set(updatedProject.id, updatedProject);
 
-  // 3. Construct Generation Record
-  const generationId =
-    options?.generationId || `gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-  const completedDeliverablesCount = deliverables.filter((d) => d.status === "completed").length;
-  const genStatus =
-    completedDeliverablesCount === deliverables.length
-      ? "completed"
-      : completedDeliverablesCount > 0
-      ? "partial"
-      : "failed";
-
-  const generationRecord: GenerationRecord = {
-    id: generationId,
-    projectId: existingProject.id,
-    projectName: existingProject.name,
-    generationNumber,
-    createdAt: now,
-    completedAt: now,
-    status: genStatus,
-    modelUsed: options?.modelUsed || "gemini-3.6-flash",
-    config,
-    draft: sanitizedDraft,
-    deliverables,
-    deliverableCount: deliverables.length,
-    error: options?.error || null,
-  };
-
-  // 4. Update Project Record
-  const updatedProject: ProjectRecord = {
-    ...existingProject,
-    name: sanitizedDraft.name || existingProject.name,
-    updatedAt: now,
-    latestGenerationId: generationId,
-    sourceText: sanitizedDraft.sourceText || existingProject.sourceText,
-    sourceMetadata,
-    draft: sanitizedDraft,
-    generationCount: generationNumber,
-    deliverableCount: deliverables.length,
-    status: genStatus === "completed" ? "completed" : "in_progress",
-  };
-
-  // 5. Store both to IndexedDB & Memory
-  memoryStore.generations.set(generationRecord.id, generationRecord);
-  memoryStore.projects.set(updatedProject.id, updatedProject);
-
-  const db = await getDatabase();
-  if (db && isIndexedDbAvailable) {
-    try {
-      const tx = db.transaction([STORES.PROJECTS, STORES.GENERATIONS], "readwrite");
-      tx.objectStore(STORES.PROJECTS).put(updatedProject);
-      tx.objectStore(STORES.GENERATIONS).put(generationRecord);
-    } catch (err) {
-      console.error("[LocalDB] saveGenerationAndSyncProject transaction error:", err);
+    // 6. Atomic write to IndexedDB
+    const db = await getDatabase();
+    if (db && isIndexedDbAvailable) {
+      await new Promise<void>((resolve) => {
+        try {
+          const tx = db.transaction([STORES.PROJECTS, STORES.GENERATIONS], "readwrite");
+          tx.objectStore(STORES.PROJECTS).put(updatedProject);
+          tx.objectStore(STORES.GENERATIONS).put(generationRecord);
+          tx.oncomplete = () => resolve();
+          tx.onerror = (e) => {
+            console.error("[LocalDB] saveGenerationAndSyncProject transaction error:", e);
+            resolve();
+          };
+        } catch (err) {
+          console.error("[LocalDB] saveGenerationAndSyncProject transaction exception:", err);
+          resolve();
+        }
+      });
     }
-  }
 
-  return { project: updatedProject, generation: generationRecord };
+    return { project: updatedProject, generation: generationRecord };
+  })();
+
+  inFlightSaveLocks.set(lockKey, savePromise);
+
+  try {
+    const result = await savePromise;
+    return result;
+  } finally {
+    inFlightSaveLocks.delete(lockKey);
+  }
 }
 
 /**
@@ -570,7 +681,14 @@ export async function getAllGenerations(): Promise<GenerationRecord[]> {
       const request = store.getAll();
 
       request.onsuccess = () => {
-        const records: GenerationRecord[] = request.result || [];
+        const rawRecords: GenerationRecord[] = request.result || [];
+        const distinctMap = new Map<string, GenerationRecord>();
+        for (const rec of rawRecords) {
+          if (!distinctMap.has(rec.id) || new Date(rec.completedAt || rec.createdAt).getTime() > new Date(distinctMap.get(rec.id)!.completedAt || distinctMap.get(rec.id)!.createdAt).getTime()) {
+            distinctMap.set(rec.id, rec);
+          }
+        }
+        const records = Array.from(distinctMap.values());
         records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         resolve(records);
       };

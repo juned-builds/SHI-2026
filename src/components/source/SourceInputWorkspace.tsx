@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Upload,
   FileText,
@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Sparkles,
   Layers,
+  CheckCircle2,
 } from "lucide-react";
 import { ProjectDraft, SourceFileMetadata, SourceType } from "../../types";
 import { Button } from "../ui/Button";
@@ -14,6 +15,12 @@ import { Input } from "../ui/Input";
 import { SourceDropzone } from "./SourceDropzone";
 import { SelectedFileCard } from "./SelectedFileCard";
 import { SourceTextInput } from "./SourceTextInput";
+import {
+  extractTextFromSourceFile,
+  calculateWordCount,
+  MIN_SOURCE_CHAR_LENGTH,
+  MIN_SOURCE_WORD_COUNT,
+} from "../../utils/documentExtractor";
 
 export interface SourceInputWorkspaceProps {
   initialDraft?: Partial<ProjectDraft>;
@@ -36,27 +43,80 @@ export function SourceInputWorkspace({
     initialDraft?.sourceFile || null
   );
   const [fileError, setFileError] = useState<string | null>(null);
+  
+  // File extraction state
+  const [isExtractingFile, setIsExtractingFile] = useState<boolean>(false);
+  const [fileExtractionError, setFileExtractionError] = useState<string | null>(null);
+  const [extractedFileText, setExtractedFileText] = useState<string>(
+    initialDraft?.sourceType === "file" && initialDraft?.sourceText ? initialDraft.sourceText : ""
+  );
+  const [fileWordCount, setFileWordCount] = useState<number>(
+    initialDraft?.sourceType === "file" && initialDraft?.wordCount ? initialDraft.wordCount : 0
+  );
+  const [fileCharCount, setFileCharCount] = useState<number>(
+    initialDraft?.sourceType === "file" && initialDraft?.charCount ? initialDraft.charCount : 0
+  );
+  const [filePageCount, setFilePageCount] = useState<number | undefined>(undefined);
+
+  // Raw text state
   const [sourceText, setSourceText] = useState<string>(
-    initialDraft?.sourceText || ""
+    initialDraft?.sourceType === "text" && initialDraft?.sourceText ? initialDraft.sourceText : ""
   );
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const hasFile = selectedFile !== null;
-  const trimmedText = sourceText.trim();
-  const hasText = trimmedText.length > 0;
+  // Perform extraction whenever a file is selected
+  const processFileExtraction = async (fileMeta: SourceFileMetadata) => {
+    setIsExtractingFile(true);
+    setFileExtractionError(null);
+    setValidationError(null);
 
-  // Active validation strictly checks the currently active tab mode
-  const isActiveSourceValid = activeTab === "file" ? hasFile : hasText;
+    try {
+      const result = await extractTextFromSourceFile(fileMeta.file);
+      if (!result.success) {
+        setFileExtractionError(result.error || "Failed to extract text from document.");
+        setExtractedFileText("");
+        setFileWordCount(0);
+        setFileCharCount(0);
+      } else {
+        setExtractedFileText(result.text);
+        setFileWordCount(result.wordCount);
+        setFileCharCount(result.charCount);
+        setFilePageCount(result.pageCount);
+        setFileExtractionError(null);
+
+        // If project name is default, suggest the file name
+        if (!projectName || projectName === "Untitled transformation") {
+          const suggestedName = fileMeta.name.replace(/\.[^/.]+$/, "");
+          if (suggestedName) {
+            setProjectName(suggestedName);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error("[SourceInputWorkspace] Extraction exception:", err);
+      setFileExtractionError(err.message || "An unexpected error occurred reading the file.");
+      setExtractedFileText("");
+      setFileWordCount(0);
+      setFileCharCount(0);
+    } finally {
+      setIsExtractingFile(false);
+    }
+  };
 
   const handleFileSelected = (fileMeta: SourceFileMetadata) => {
     setSelectedFile(fileMeta);
     setFileError(null);
-    setValidationError(null);
+    processFileExtraction(fileMeta);
   };
 
   const handleFileRemoved = () => {
     setSelectedFile(null);
     setFileError(null);
+    setExtractedFileText("");
+    setFileWordCount(0);
+    setFileCharCount(0);
+    setFilePageCount(undefined);
+    setFileExtractionError(null);
   };
 
   const handleTextChange = (text: string) => {
@@ -71,6 +131,14 @@ export function SourceInputWorkspace({
     setValidationError(null);
   };
 
+  const trimmedRawText = sourceText.trim();
+  const rawTextWordCount = calculateWordCount(trimmedRawText);
+
+  // Active validation strictly checks the currently active tab mode
+  const isFileValid = selectedFile !== null && !isExtractingFile && !fileExtractionError && extractedFileText.length >= MIN_SOURCE_CHAR_LENGTH;
+  const isTextValid = trimmedRawText.length >= MIN_SOURCE_CHAR_LENGTH && rawTextWordCount >= MIN_SOURCE_WORD_COUNT;
+  const isActiveSourceValid = activeTab === "file" ? isFileValid : isTextValid;
+
   const handleContinue = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -79,7 +147,20 @@ export function SourceInputWorkspace({
     if (activeTab === "file") {
       if (!selectedFile) {
         setValidationError(
-          "Please select a valid document or media file to continue, or switch to the Paste Text tab."
+          "Please select a valid document to continue, or switch to the Paste Text tab."
+        );
+        return;
+      }
+
+      if (isExtractingFile) {
+        setValidationError("Please wait for document text extraction to complete.");
+        return;
+      }
+
+      if (fileExtractionError || !extractedFileText || extractedFileText.trim().length < MIN_SOURCE_CHAR_LENGTH) {
+        setValidationError(
+          fileExtractionError ||
+            "No readable text was found in this document. Please upload a text-based document or provide the content as text."
         );
         return;
       }
@@ -88,28 +169,33 @@ export function SourceInputWorkspace({
         name: finalName,
         sourceType: "file",
         sourceFile: selectedFile,
-        sourceText: "",
-        charCount: 0,
-        wordCount: 0,
+        sourceText: extractedFileText.trim(),
+        charCount: fileCharCount,
+        wordCount: fileWordCount,
         isReady: true,
       });
     } else {
-      if (!hasText) {
+      if (!trimmedRawText) {
         setValidationError(
           "Please enter or paste your source text to continue, or switch to the Upload File tab."
         );
         return;
       }
 
-      const wordCount = trimmedText.split(/\s+/).length;
+      if (trimmedRawText.length < MIN_SOURCE_CHAR_LENGTH || rawTextWordCount < MIN_SOURCE_WORD_COUNT) {
+        setValidationError(
+          `Source text is too short. Please provide at least ${MIN_SOURCE_CHAR_LENGTH} characters of content.`
+        );
+        return;
+      }
 
       onContinue({
         name: finalName,
         sourceType: "text",
         sourceFile: null,
-        sourceText: trimmedText,
-        charCount: trimmedText.length,
-        wordCount,
+        sourceText: trimmedRawText,
+        charCount: trimmedRawText.length,
+        wordCount: rawTextWordCount,
         isReady: true,
       });
     }
@@ -125,7 +211,7 @@ export function SourceInputWorkspace({
         >
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
           <div className="flex-1 space-y-1">
-            <p className="font-semibold text-red-900">Source Material Required</p>
+            <p className="font-semibold text-red-900">Source Material Incomplete</p>
             <p className="text-red-700 leading-relaxed">{validationError}</p>
           </div>
         </div>
@@ -182,9 +268,9 @@ export function SourceInputWorkspace({
                 }`}
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Upload File</span>
-                {hasFile && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="File selected" />
+                <span>Upload Document</span>
+                {isFileValid && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="Valid document ready" />
                 )}
               </button>
               <button
@@ -198,16 +284,16 @@ export function SourceInputWorkspace({
               >
                 <FileText className="w-3.5 h-3.5" />
                 <span>Paste Text</span>
-                {hasText && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="Text entered" />
+                {isTextValid && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 ml-0.5" title="Valid text ready" />
                 )}
               </button>
             </div>
           </div>
           <CardDescription>
             {activeTab === "file"
-              ? "Select a document, image, or video file to transform."
-              : "Paste raw text, articles, or notes to transform."}
+              ? "Upload a PDF, DOCX, TXT, or Markdown document. Text will be extracted locally before configuration."
+              : "Paste raw text, articles, research papers, or transcript notes."}
           </CardDescription>
         </CardHeader>
 
@@ -215,14 +301,20 @@ export function SourceInputWorkspace({
           {/* Tab 1: File Upload */}
           {activeTab === "file" && (
             <div className="space-y-4">
-              {hasFile && selectedFile ? (
+              {selectedFile ? (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Selected Source File
+                    Selected Source Document
                   </p>
                   <SelectedFileCard
                     metadata={selectedFile}
                     onRemove={handleFileRemoved}
+                    isExtracting={isExtractingFile}
+                    extractionError={fileExtractionError}
+                    extractedText={extractedFileText}
+                    wordCount={fileWordCount}
+                    charCount={fileCharCount}
+                    pageCount={filePageCount}
                   />
                 </div>
               ) : (
@@ -248,9 +340,9 @@ export function SourceInputWorkspace({
           )}
 
           {/* Informative notice if user switched tabs and has inactive content */}
-          {activeTab === "file" && hasText && !hasFile && (
+          {activeTab === "file" && isTextValid && !selectedFile && (
             <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-              <span>You have text entered in the <strong>Paste Text</strong> tab.</span>
+              <span>You have valid text entered in the <strong>Paste Text</strong> tab ({rawTextWordCount} words).</span>
               <button
                 type="button"
                 onClick={() => handleTabSwitch("text")}
@@ -261,24 +353,24 @@ export function SourceInputWorkspace({
             </div>
           )}
 
-          {activeTab === "text" && hasFile && !hasText && (
+          {activeTab === "text" && selectedFile && isFileValid && !isTextValid && (
             <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600">
-              <span>You have a file selected in the <strong>Upload File</strong> tab ({selectedFile?.name}).</span>
+              <span>You have a valid document extracted in the <strong>Upload Document</strong> tab ({selectedFile?.name}).</span>
               <button
                 type="button"
                 onClick={() => handleTabSwitch("file")}
                 className="text-slate-900 font-semibold hover:underline cursor-pointer ml-2"
               >
-                Switch to File
+                Switch to Document
               </button>
             </div>
           )}
 
-          {hasFile && hasText && (
+          {selectedFile && isFileValid && isTextValid && (
             <div className="flex items-center gap-2 p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-blue-800">
               <Layers className="w-4 h-4 text-blue-600 shrink-0" />
               <span>
-                Active Source Mode: <strong>{activeTab === "file" ? "File Upload" : "Pasted Text"}</strong>. Only the active mode's content will be used.
+                Active Source Mode: <strong>{activeTab === "file" ? `Uploaded Document (${selectedFile.name})` : "Pasted Raw Text"}</strong>. Only the active mode's content will be transformed.
               </span>
             </div>
           )}
@@ -289,7 +381,7 @@ export function SourceInputWorkspace({
       <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Sparkles className="w-3.5 h-3.5 text-slate-400" />
-          <span>Local transformation draft • In-memory state</span>
+          <span>Extracted locally • Verified before transformation</span>
         </div>
 
         <div className="w-full sm:w-auto flex items-center justify-end gap-3">
@@ -311,7 +403,7 @@ export function SourceInputWorkspace({
             icon={<ArrowRight className="w-4 h-4" />}
             className="w-full sm:w-auto"
           >
-            Continue
+            Continue to Configuration
           </Button>
         </div>
       </div>

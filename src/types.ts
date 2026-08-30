@@ -215,6 +215,13 @@ export interface GenerationApiResponse {
   generatedAt: string;
 }
 
+export type PersistenceStatus =
+  | "unsaved"
+  | "saving"
+  | "saved"
+  | "dirty"
+  | "save_failed";
+
 export interface GenerationSession {
   sessionId: string;
   projectId?: string;
@@ -231,6 +238,8 @@ export interface GenerationSession {
   preparedAt?: string;
   completedAt?: string;
   error?: string | null;
+  persistenceStatus?: PersistenceStatus;
+  isSaved?: boolean;
 }
 
 export interface SerializableSourceMetadata {

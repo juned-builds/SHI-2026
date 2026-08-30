@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useTransition } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Plus,
   FolderKanban,
@@ -13,8 +13,9 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  RefreshCw,
+  Edit2,
   AlertCircle,
+  X,
 } from "lucide-react";
 import { PageContainer } from "../layout/PageContainer";
 import { PageHeader } from "../layout/PageHeader";
@@ -23,7 +24,12 @@ import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { Input } from "../ui/Input";
 import { ProjectRecord, GenerationRecord } from "../../types";
-import { getAllProjects, deleteProject, getGeneration } from "../../services/db";
+import {
+  getAllProjects,
+  deleteProject,
+  getGeneration,
+  renameProject as dbRenameProject,
+} from "../../services/db";
 import { ProjectHistoryModal } from "./ProjectHistoryModal";
 
 export interface ProjectsViewProps {
@@ -45,6 +51,10 @@ export function ProjectsView({
     useState<ProjectRecord | null>(null);
   const [projectToDelete, setProjectToDelete] = useState<ProjectRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [projectToRename, setProjectToRename] = useState<ProjectRecord | null>(null);
+  const [newProjectName, setNewProjectName] = useState<string>("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [isRenaming, setIsRenaming] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   const fetchProjects = async () => {
@@ -66,7 +76,6 @@ export function ProjectsView({
 
   const handleOpenLatest = async (project: ProjectRecord) => {
     if (!project.latestGenerationId) {
-      // If no generation yet, navigate to configure
       if (onNewTransformationForProject) {
         onNewTransformationForProject(project);
       } else {
@@ -100,6 +109,37 @@ export function ProjectsView({
     } finally {
       setIsDeleting(false);
       setProjectToDelete(null);
+    }
+  };
+
+  const handleStartRename = (project: ProjectRecord) => {
+    setProjectToRename(project);
+    setNewProjectName(project.name);
+    setRenameError(null);
+  };
+
+  const handleConfirmRename = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!projectToRename) return;
+    const trimmed = newProjectName.trim();
+    if (!trimmed) {
+      setRenameError("Project name cannot be empty.");
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      const updated = await dbRenameProject(projectToRename.id, trimmed);
+      if (updated) {
+        setProjects((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+        setNotification(`Project renamed to "${updated.name}".`);
+        setTimeout(() => setNotification(null), 4000);
+      }
+      setProjectToRename(null);
+    } catch (err) {
+      console.error("Failed to rename project:", err);
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -154,7 +194,7 @@ export function ProjectsView({
       <PageHeader
         title="Projects"
         description="Organize your content transformation workspaces, generation history, and deliverables."
-        badge={`${projects.length} Total`}
+        badge={`${projects.length} Saved`}
         action={
           <Button
             variant="primary"
@@ -211,7 +251,7 @@ export function ProjectsView({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search projects or sources..."
-            className="text-xs bg-white pl-8 border-slate-200 focus:border-emerald-500"
+            className="text-xs bg-white pl-8 border-slate-200 focus:border-blue-500"
           />
           <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
@@ -241,12 +281,12 @@ export function ProjectsView({
             title={
               searchQuery
                 ? "No matching projects found"
-                : "No transformation projects recorded yet"
+                : "No saved transformation projects yet"
             }
             description={
               searchQuery
                 ? `No projects matched the search query "${searchQuery}". Try a different keyword.`
-                : "Your transformation projects, generation history, and edited deliverables will be securely preserved here in local storage."
+                : "When you generate and click 'Save Project' in the results workspace, your projects and deliverables will be preserved here in local storage."
             }
             primaryAction={
               !searchQuery
@@ -276,6 +316,15 @@ export function ProjectsView({
                       <h3 className="text-base font-bold text-slate-900 tracking-tight">
                         {project.name}
                       </h3>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStartRename(project)}
+                        className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md transition-colors cursor-pointer"
+                        title="Rename Project"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
 
                       <span
                         className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${
@@ -328,8 +377,8 @@ export function ProjectsView({
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
                   {/* Badges */}
                   <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 font-medium text-emerald-800 bg-emerald-50/80 px-2.5 py-1 rounded-md border border-emerald-200/60">
-                      <History className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="inline-flex items-center gap-1.5 font-medium text-blue-800 bg-blue-50/80 px-2.5 py-1 rounded-md border border-blue-200/60">
+                      <History className="w-3.5 h-3.5 text-blue-600" />
                       {project.generationCount} Generation
                       {project.generationCount === 1 ? "" : "s"}
                     </span>
@@ -360,7 +409,7 @@ export function ProjectsView({
                     <Button
                       variant="outline"
                       size="sm"
-                      icon={<Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
+                      icon={<Sparkles className="w-3.5 h-3.5 text-blue-600" />}
                       onClick={() => {
                         if (onNewTransformationForProject) {
                           onNewTransformationForProject(project);
@@ -368,7 +417,7 @@ export function ProjectsView({
                           onNavigate("projects/new/configure");
                         }
                       }}
-                      className="text-xs border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+                      className="text-xs border-blue-200 text-blue-800 hover:bg-blue-50"
                     >
                       New Generation
                     </Button>
@@ -382,7 +431,7 @@ export function ProjectsView({
                         onClick={() => handleOpenLatest(project)}
                         className="text-xs shadow-2xs"
                       >
-                        Open Latest
+                        Open Project
                       </Button>
                     )}
 
@@ -400,6 +449,69 @@ export function ProjectsView({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Rename Project Modal */}
+      {projectToRename && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-md w-full p-6 space-y-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-base font-bold text-slate-900">Rename Project</h4>
+                  <p className="text-xs text-slate-500">Update project display name</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setProjectToRename(null)}
+                className="text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmRename} className="space-y-4 pt-1">
+              <Input
+                label="New Project Name"
+                value={newProjectName}
+                onChange={(e) => {
+                  setNewProjectName(e.target.value);
+                  if (renameError && e.target.value.trim()) setRenameError(null);
+                }}
+                error={renameError || undefined}
+                required
+                autoFocus
+              />
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setProjectToRename(null)}
+                  disabled={isRenaming}
+                  className="text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isRenaming}
+                  className="text-xs"
+                >
+                  Save Name
+                </Button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

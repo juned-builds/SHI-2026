@@ -7,7 +7,7 @@ import {
   RotateCcw,
   AlertCircle,
   Plus,
-  RefreshCw,
+  Edit2,
   Cpu,
 } from "lucide-react";
 import {
@@ -15,7 +15,6 @@ import {
   TransformationConfig,
   GenerationSession,
   PipelineStage,
-  GeneratedDeliverable,
 } from "../../types";
 import { PageContainer } from "../layout/PageContainer";
 import { PageHeader } from "../layout/PageHeader";
@@ -24,14 +23,13 @@ import { Card } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { GenerationSummaryCard } from "../generation/GenerationSummaryCard";
 import { PipelineProgressTracker } from "../generation/PipelineProgressTracker";
-import { GeneratedDeliverablesViewer } from "../generation/GeneratedDeliverablesViewer";
 import { ResultsWorkspace } from "../results/ResultsWorkspace";
 import {
   INITIAL_PIPELINE_STAGES,
   createDeliverablePipelineItems,
 } from "../../constants/generationConstants";
 import { executeTransformationApi } from "../../services/generationApi";
-import { saveGenerationAndSyncProject } from "../../services/db";
+import { validateDraftSourceContract } from "../../utils/documentExtractor";
 
 export interface GenerationWorkspaceViewProps {
   draft: ProjectDraft | null;
@@ -64,8 +62,17 @@ export function GenerationWorkspaceView({
       currentStageIndex: 0,
       stages: INITIAL_PIPELINE_STAGES.map((s) => ({ ...s, status: "pending" })),
       deliverablesPipeline: createDeliverablePipelineItems(config.deliverables),
+      persistenceStatus: "unsaved",
+      isSaved: false,
     };
   });
+
+  // Synchronize with parent's initialSession when it changes
+  useEffect(() => {
+    if (initialSession) {
+      setSession(initialSession);
+    }
+  }, [initialSession]);
 
   const [progressPercent, setProgressPercent] = useState<number>(() => {
     return initialSession?.status === "completed" ? 100 : 0;
@@ -75,12 +82,12 @@ export function GenerationWorkspaceView({
   const abortControllerRef = useRef<AbortController | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync session state to parent when updated
-  useEffect(() => {
-    if (session && onUpdateSession) {
-      onUpdateSession(session);
+  const handleUpdateSession = (updatedSession: GenerationSession) => {
+    setSession(updatedSession);
+    if (onUpdateSession) {
+      onUpdateSession(updatedSession);
     }
-  }, [session, onUpdateSession]);
+  };
 
   // Clean up timers & pending fetches on unmount
   useEffect(() => {
@@ -130,6 +137,13 @@ export function GenerationWorkspaceView({
   const handleStartTransformation = async () => {
     if (!draft || !config) return;
 
+    // Validate source contract before starting
+    const contract = validateDraftSourceContract(draft);
+    if (!contract.valid) {
+      setErrorMessage(contract.error || "Source content is incomplete.");
+      return;
+    }
+
     setErrorMessage(null);
 
     // Abort any prior request
@@ -149,6 +163,7 @@ export function GenerationWorkspaceView({
 
     const activeSession: GenerationSession = {
       sessionId: `gen_session_${Date.now()}`,
+      projectId: session?.projectId, // Preserve projectId if re-generating an existing saved project
       createdAt: new Date().toISOString(),
       draft,
       config,
@@ -157,6 +172,7 @@ export function GenerationWorkspaceView({
       stages: freshStages,
       deliverablesPipeline: freshDeliverables,
       error: null,
+      isSaved: Boolean(session?.projectId),
     };
 
     setSession(activeSession);
@@ -191,28 +207,8 @@ export function GenerationWorkspaceView({
             throw new Error(apiResponse.error || "Transformation returned no deliverables.");
           }
 
-          // Persist generation and sync project to IndexedDB
-          let persistedProjectId = session?.projectId;
-          let persistedGenId = session?.generationId;
-
-          try {
-            const saved = await saveGenerationAndSyncProject(
-              draft,
-              config,
-              apiResponse.deliverables,
-              {
-                projectId: session?.projectId,
-                generationId: session?.sessionId,
-                modelUsed: apiResponse.model || "gemini-3.7-flash",
-              }
-            );
-            persistedProjectId = saved.project.id;
-            persistedGenId = saved.generation.id;
-          } catch (dbErr) {
-            console.warn("[GenerationWorkspace] Could not persist to IndexedDB:", dbErr);
-          }
-
-          // Complete all stages
+          // Complete all stages WITHOUT automatically writing to IndexedDB.
+          // The generation produces an Unsaved Session for user inspection and review.
           setSession((prev) => {
             if (!prev) return null;
             const updatedStages: PipelineStage[] = prev.stages.map((s) => ({
@@ -229,11 +225,11 @@ export function GenerationWorkspaceView({
               };
             });
 
-            return {
+            const completedSession: GenerationSession = {
               ...prev,
-              projectId: persistedProjectId,
-              generationId: persistedGenId,
               status: "completed",
+              persistenceStatus: Boolean(prev.projectId) ? "saved" : "unsaved",
+              isSaved: Boolean(prev.projectId),
               currentStageIndex: 3,
               stages: updatedStages,
               deliverablesPipeline: updatedDeliverables,
@@ -241,6 +237,12 @@ export function GenerationWorkspaceView({
               modelUsed: apiResponse.model || "gemini-3.7-flash",
               completedAt: apiResponse.generatedAt,
             };
+
+            if (onUpdateSession) {
+              onUpdateSession(completedSession);
+            }
+
+            return completedSession;
           });
 
           setProgressPercent(100);
@@ -314,6 +316,21 @@ export function GenerationWorkspaceView({
     setProgressPercent(0);
   };
 
+  // Handle Discard from Results
+  const handleDiscardSession = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    if (onCancel) {
+      onCancel();
+    } else {
+      onNavigate("projects");
+    }
+  };
+
   const status = session?.status || "idle";
   const isGenerating = status === "generating" || status === "preparing" || status === "validating";
   const isCompleted = status === "completed" && session?.generatedDeliverables && session.generatedDeliverables.length > 0;
@@ -334,7 +351,7 @@ export function GenerationWorkspaceView({
           Back to Configuration
         </Button>
 
-        {onCancel && (
+        {onCancel && !isCompleted && (
           <Button
             variant="ghost"
             size="sm"
@@ -342,24 +359,22 @@ export function GenerationWorkspaceView({
             disabled={isGenerating}
             className="text-slate-400 hover:text-red-600 text-xs"
           >
-            Cancel Project
+            Cancel Session
           </Button>
         )}
       </div>
 
-      {/* Page Header */}
-      <PageHeader
-        title={isCompleted ? "AI Deliverables Generated" : "GenAI Content Transformation Workspace"}
-        description={
-          isCompleted
-            ? "Your multi-deliverable transformations have been generated using the Gemini AI engine."
-            : "Review parameters and execute structured multi-deliverable content transformation through the FastAPI GenAI pipeline."
-        }
-        badge="Module 0.6 Core Engine"
-      />
+      {/* Page Header (shown during idle, generating, or failed) */}
+      {!isCompleted && (
+        <PageHeader
+          title="GenAI Content Transformation Workspace"
+          description="Review parameters and execute structured multi-deliverable content transformation through the GenAI pipeline."
+          badge="Module 0.6 Core Engine"
+        />
+      )}
 
       <div className="space-y-6">
-        {/* Error Alert */}
+        {/* Error Alert with categorized guidance */}
         {isFailed && (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
             <div className="flex items-start gap-2.5">
@@ -367,17 +382,33 @@ export function GenerationWorkspaceView({
               <div>
                 <span className="font-semibold text-red-950">Transformation Generation Error</span>
                 <p className="text-red-700 mt-0.5">{errorMessage || session?.error || "AI generation failed."}</p>
+                {errorMessage?.toLowerCase().includes("source") && (
+                  <p className="text-red-600 mt-1 font-medium">
+                    Tip: Check that your uploaded document or raw text contains readable content.
+                  </p>
+                )}
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<RotateCcw className="w-3.5 h-3.5" />}
-              onClick={handleStartTransformation}
-              className="text-xs bg-white border-red-300 text-red-700 hover:bg-red-50 shrink-0"
-            >
-              Retry Transformation
-            </Button>
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<Edit2 className="w-3.5 h-3.5" />}
+                onClick={() => onNavigate("projects/new")}
+                className="text-xs bg-white text-slate-700 hover:bg-slate-50"
+              >
+                Edit Source
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<RotateCcw className="w-3.5 h-3.5" />}
+                onClick={handleStartTransformation}
+                className="text-xs bg-white border-red-300 text-red-700 hover:bg-red-50"
+              >
+                Retry Transformation
+              </Button>
+            </div>
           </div>
         )}
 
@@ -409,15 +440,16 @@ export function GenerationWorkspaceView({
           />
         )}
 
-        {/* Deliverables Results Workspace */}
+        {/* Deliverables Results Workspace (Unsaved or Saved) */}
         {isCompleted && session?.generatedDeliverables && (
           <ResultsWorkspace
             draft={draft}
             config={config}
             session={session}
-            onUpdateSession={onUpdateSession}
+            onUpdateSession={handleUpdateSession}
             onNavigate={onNavigate}
             onRegenerateAll={handleStartTransformation}
+            onDiscard={handleDiscardSession}
           />
         )}
 

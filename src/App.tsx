@@ -184,6 +184,8 @@ export default function App() {
         ),
         generatedDeliverables: generation.deliverables,
         modelUsed: generation.modelUsed || "gemini-3.7-flash",
+        persistenceStatus: "saved",
+        isSaved: true,
       };
       setGenerationSession(restoredSession);
       setCurrentRoute("projects/results");
@@ -191,6 +193,13 @@ export default function App() {
       setTransformationConfig(null);
       setGenerationSession(null);
       setCurrentRoute("projects/new/configure");
+    }
+  };
+
+  const handleUpdateSession = (updatedSession: GenerationSession | null) => {
+    setGenerationSession(updatedSession);
+    if (updatedSession?.draft) {
+      setProjectDraft(updatedSession.draft);
     }
   };
 
@@ -250,7 +259,7 @@ export default function App() {
           draft={projectDraft}
           config={transformationConfig}
           session={generationSession}
-          onUpdateSession={setGenerationSession}
+          onUpdateSession={handleUpdateSession}
           onNavigate={handleNavigate}
           onCancel={handleCancelProject}
         />
@@ -262,9 +271,10 @@ export default function App() {
             config={transformationConfig}
             session={generationSession}
             isOpenedFromHistory={openedFromHistory}
-            onUpdateSession={setGenerationSession}
+            onUpdateSession={handleUpdateSession}
             onNavigate={handleNavigate}
             onRegenerateAll={() => setCurrentRoute("projects/generate")}
+            onDiscard={handleCancelProject}
           />
         </PageContainer>
       )}
