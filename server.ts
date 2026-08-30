@@ -1,3 +1,4 @@
+import http from "http";
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
@@ -6,6 +7,7 @@ import { executeTransformation } from "./server/generationService";
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const httpServer = http.createServer(app);
 
   // Middleware for body parsing
   app.use(express.json({ limit: "15mb" }));
@@ -60,8 +62,16 @@ async function startServer() {
 
   // --- Vite & Frontend Middleware ---
   if (process.env.NODE_ENV !== "production") {
+    const isHmrDisabled = process.env.DISABLE_HMR === "true";
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: isHmrDisabled
+          ? false
+          : {
+              server: httpServer,
+            },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -73,7 +83,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`[Server] Full-stack Content Transformation server running on http://0.0.0.0:${PORT}`);
   });
 }
