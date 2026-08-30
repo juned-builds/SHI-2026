@@ -62,7 +62,11 @@ async function startServer() {
 
   // --- Vite & Frontend Middleware ---
   if (process.env.NODE_ENV !== "production") {
-    const isHmrDisabled = process.env.DISABLE_HMR === "true";
+    const isHmrDisabled =
+      process.env.DISABLE_HMR === "true" ||
+      Boolean(process.env.K_SERVICE) ||
+      Boolean(process.env.APPLET_ID);
+
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
