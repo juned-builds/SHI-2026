@@ -13,17 +13,20 @@ import {
 } from "lucide-react";
 import { GeneratedDeliverable, DeliverableDisplayMode } from "../../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import { VideoPackageViewer } from "./video/VideoPackageViewer";
 
 export interface DeliverablePreviewProps {
   deliverable: GeneratedDeliverable;
   displayMode: DeliverableDisplayMode;
   onChangeDisplayMode: (mode: DeliverableDisplayMode) => void;
+  projectName?: string;
 }
 
 export function DeliverablePreview({
   deliverable,
   displayMode,
   onChangeDisplayMode,
+  projectName,
 }: DeliverablePreviewProps) {
   const hasStructuredData =
     deliverable.structuredData &&
@@ -112,6 +115,7 @@ export function DeliverablePreview({
         <StructuredDataVisualizer
           deliverableId={deliverable.deliverableId}
           data={deliverable.structuredData!}
+          projectName={projectName}
         />
       )}
 
@@ -135,15 +139,17 @@ export function DeliverablePreview({
 function StructuredDataVisualizer({
   deliverableId,
   data,
+  projectName,
 }: {
   deliverableId: string;
   data: Record<string, any>;
+  projectName?: string;
 }) {
   switch (deliverableId) {
     case "presentation":
       return <PresentationDeckViewer data={data} />;
     case "video_package":
-      return <VideoPackageViewer data={data} />;
+      return <VideoPackageViewer data={data} projectName={projectName} />;
     case "infographic":
       return <InfographicViewer data={data} />;
     case "executive_summary":
@@ -220,71 +226,6 @@ function PresentationDeckViewer({ data }: { data: Record<string, any> }) {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function VideoPackageViewer({ data }: { data: Record<string, any> }) {
-  const scenes = Array.isArray(data.scenes) ? data.scenes : [];
-
-  return (
-    <div className="space-y-4">
-      <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-lg flex items-center justify-between">
-        <div>
-          <span className="text-[11px] font-semibold text-purple-800 uppercase tracking-wide">
-            Video Title
-          </span>
-          <h4 className="text-sm font-bold text-purple-950 mt-0.5">{data.title || "Video Production Blueprint"}</h4>
-        </div>
-        {data.duration_guidance && (
-          <span className="px-2.5 py-1 bg-purple-100 text-purple-900 rounded-md text-xs font-semibold">
-            {data.duration_guidance}
-          </span>
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <h5 className="text-xs font-semibold text-slate-700">Scene Storyboard Sequence</h5>
-        {scenes.map((scene: any, idx: number) => (
-          <div
-            key={idx}
-            className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-2 text-xs"
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-purple-700">Scene {scene.scene_number || idx + 1}</span>
-              <Video className="w-3.5 h-3.5 text-slate-400" />
-            </div>
-
-            {scene.visual_direction && (
-              <div>
-                <span className="text-slate-400 text-[11px] uppercase font-semibold">Visual Direction</span>
-                <p className="text-slate-700 mt-0.5">{scene.visual_direction}</p>
-              </div>
-            )}
-
-            {scene.narration_script && (
-              <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg">
-                <span className="text-slate-400 text-[11px] uppercase font-semibold">Narration Script (VO)</span>
-                <p className="text-slate-900 italic mt-0.5 font-serif">"{scene.narration_script}"</p>
-              </div>
-            )}
-
-            {scene.on_screen_text && (
-              <div>
-                <span className="text-slate-400 text-[11px] uppercase font-semibold">On-Screen Overlay Text</span>
-                <p className="text-blue-700 font-mono text-[11px] mt-0.5">{scene.on_screen_text}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {data.subtitles && (
-        <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-          <span className="font-semibold text-slate-800 block mb-1">Subtitles Transcript</span>
-          <p className="text-slate-600 whitespace-pre-wrap">{data.subtitles}</p>
-        </div>
-      )}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import {
   FileText,
   Code2,
   Share2,
+  Film,
+  MessageSquare,
 } from "lucide-react";
 import { GeneratedDeliverable, ProjectDraft, TransformationConfig } from "../../types";
 import { Button } from "../ui/Button";
@@ -18,6 +20,12 @@ import {
   buildCombinedExportMarkdown,
   sanitizeFilename,
 } from "../../utils/exportHelpers";
+import {
+  normalizeVideoPackageData,
+  generateSrtCaptions,
+  generateContinuousScript,
+  generateStoryboardMarkdown,
+} from "../../utils/videoPackageUtils";
 
 export interface ExportControlsProps {
   activeDeliverable: GeneratedDeliverable;
@@ -44,6 +52,8 @@ export function ExportControls({
 }: ExportControlsProps) {
   const [copied, setCopied] = useState<boolean>(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+
+  const isVideo = activeDeliverable.deliverableId === "video_package";
 
   const handleCopy = async () => {
     try {
@@ -84,6 +94,24 @@ export function ExportControls({
     const safeDeliv = sanitizeFilename(activeDeliverable.deliverableId);
     const filename = `${safeProject}_${safeDeliv}.json`;
     downloadJsonFile(filename, activeDeliverable.structuredData);
+  };
+
+  const handleDownloadSrt = () => {
+    if (!isVideo || !activeDeliverable.structuredData) return;
+    const pkg = normalizeVideoPackageData(activeDeliverable.structuredData, activeDeliverable.title);
+    const safeProject = sanitizeFilename(draft.name || "video");
+    const filename = `${safeProject}_captions.srt`;
+    const srt = generateSrtCaptions(pkg);
+    downloadTextFile(filename, srt);
+  };
+
+  const handleDownloadScript = () => {
+    if (!isVideo || !activeDeliverable.structuredData) return;
+    const pkg = normalizeVideoPackageData(activeDeliverable.structuredData, activeDeliverable.title);
+    const safeProject = sanitizeFilename(draft.name || "video");
+    const filename = `${safeProject}_teleprompter_script.md`;
+    const script = generateContinuousScript(pkg);
+    downloadTextFile(filename, script);
   };
 
   const handleExportAll = () => {
@@ -155,6 +183,31 @@ export function ExportControls({
           {copied ? "Copied!" : "Copy"}
         </Button>
 
+        {isVideo && hasJson && (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadSrt}
+              icon={<MessageSquare className="w-3.5 h-3.5 text-emerald-600" />}
+              className="text-xs text-emerald-800 border-emerald-200 hover:bg-emerald-50"
+            >
+              Download .SRT
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDownloadScript}
+              icon={<Film className="w-3.5 h-3.5 text-purple-600" />}
+              className="text-xs text-purple-800 border-purple-200 hover:bg-purple-50"
+            >
+              Download Script
+            </Button>
+          </>
+        )}
+
         {hasJson && (
           <Button
             type="button"
@@ -193,3 +246,4 @@ export function ExportControls({
     </div>
   );
 }
+

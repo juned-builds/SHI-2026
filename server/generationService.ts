@@ -25,6 +25,134 @@ export interface GenerationResponsePayload {
   generatedAt: string;
 }
 
+function normalizeVideoPackage(data: Record<string, any>, defaultTitle: string): Record<string, any> {
+  const title = data.title || defaultTitle || "Video Production Blueprint";
+  const objective = data.objective || "";
+  const targetAudience = data.targetAudience || data.target_audience || "";
+  const targetLanguage = data.targetLanguage || data.target_language || "English";
+  const estimatedDuration = data.estimatedDuration || data.duration_guidance || data.estimated_duration || "60-90 seconds";
+  const format = data.format || data.aspect_ratio || "16:9 Landscape (YouTube/Web)";
+  const tone = data.tone || "Engaging & Informative";
+
+  let hook: any = data.hook;
+  if (typeof hook === "string") {
+    hook = { headline: hook, technique: "Opening Hook", rationale: "" };
+  } else if (!hook || typeof hook !== "object") {
+    hook = { headline: "What if you could transform complex information in seconds?", technique: "Curiosity Hook", rationale: "Engages audience curiosity immediately." };
+  }
+
+  const rawScenes = Array.isArray(data.scenes) ? data.scenes : [];
+  const scenes = rawScenes.map((s: any, idx: number) => {
+    const sceneNum = typeof s.sceneNumber === "number" ? s.sceneNumber : (typeof s.scene_number === "number" ? s.scene_number : idx + 1);
+    const startSec = idx * 15;
+    const endSec = (idx + 1) * 15;
+    const defaultTimestamp = `${Math.floor(startSec / 60)}:${(startSec % 60).toString().padStart(2, "0")} - ${Math.floor(endSec / 60)}:${(endSec % 60).toString().padStart(2, "0")}`;
+
+    let bRoll = s.bRollSuggestions || s.b_roll_suggestions || s.bRoll || s.b_roll || [];
+    if (typeof bRoll === "string") bRoll = [bRoll];
+    if (!Array.isArray(bRoll)) bRoll = [];
+
+    const narration = s.narration || s.narration_script || s.script || s.voiceover || "";
+    const visual = s.visualDirection || s.visual_direction || s.visual_concept || s.visuals || "Presenter on camera with clean backdrop.";
+    const onScreen = s.onScreenText || s.on_screen_text || s.overlay_text || "";
+    const transition = s.transition || s.transition_type || "Cut to next scene";
+    const emphasis = s.emphasis || s.tone_emphasis || "";
+    const subtitle = s.subtitleText || s.subtitle_text || s.subtitles || narration;
+
+    return {
+      sceneNumber: sceneNum,
+      timestamp: s.timestamp || s.time_range || defaultTimestamp,
+      durationSeconds: typeof s.durationSeconds === "number" ? s.durationSeconds : (typeof s.duration_seconds === "number" ? s.duration_seconds : 15),
+      sceneTitle: s.sceneTitle || s.scene_title || s.title || `Scene ${sceneNum}`,
+      narration,
+      onScreenText: onScreen,
+      visualDirection: visual,
+      bRollSuggestions: bRoll,
+      transition,
+      emphasis,
+      subtitleText: subtitle,
+    };
+  });
+
+  // If no scenes returned, create a fallback scene
+  if (scenes.length === 0) {
+    scenes.push({
+      sceneNumber: 1,
+      timestamp: "0:00 - 0:30",
+      durationSeconds: 30,
+      sceneTitle: "Core Overview & Key Takeaway",
+      narration: typeof data.narration === "string" && data.narration ? data.narration : "Here is the key takeaway from the source document.",
+      onScreenText: title,
+      visualDirection: "Presenter on camera with animated motion graphic summary.",
+      bRollSuggestions: ["Subject matter overview footage"],
+      transition: "Fade out",
+      emphasis: "Clear, engaging pacing",
+      subtitleText: typeof data.narration === "string" && data.narration ? data.narration : "Here is the key takeaway from the source document.",
+    });
+  }
+
+  let continuousNarration = typeof data.narration === "string" && data.narration.trim() ? data.narration.trim() : "";
+  if (!continuousNarration) {
+    continuousNarration = scenes.map((s: any) => s.narration).filter(Boolean).join(" ");
+  }
+
+  let subtitles = typeof data.subtitles === "string" && data.subtitles.trim() ? data.subtitles.trim() : "";
+  if (!subtitles) {
+    subtitles = scenes
+      .map((s: any) => `[${s.timestamp}] ${s.subtitleText || s.narration}`)
+      .filter(Boolean)
+      .join("\n\n");
+  }
+
+  let visualRecommendations = data.visualRecommendations || data.visual_recommendations || data.visual_layout_guidance || [];
+  if (typeof visualRecommendations === "string") visualRecommendations = [visualRecommendations];
+  if (!Array.isArray(visualRecommendations) || visualRecommendations.length === 0) {
+    visualRecommendations = [
+      "Modern clean typography with high-contrast subtitles for mobile legibility.",
+      "Balanced 60-30-10 color palette aligned with subject matter theme.",
+      "Subtle motion graphics and kinetic typography on key metrics."
+    ];
+  }
+
+  let onScreenTextSummary = data.onScreenText || data.on_screen_text || [];
+  if (typeof onScreenTextSummary === "string") onScreenTextSummary = [onScreenTextSummary];
+  if (!Array.isArray(onScreenTextSummary) || onScreenTextSummary.length === 0) {
+    onScreenTextSummary = scenes.map((s: any) => s.onScreenText).filter(Boolean);
+  }
+
+  const transitionNotes = data.transitionNotes || data.transition_notes || "Maintain dynamic 8-15 second scene rhythm with smooth visual transitions and audio stingers between segments.";
+  const callToAction = data.callToAction || data.call_to_action || data.cta || "For more detailed insights and complete data, access the full source publication.";
+
+  let prodNotes = data.productionNotes || data.production_notes;
+  if (!prodNotes || typeof prodNotes !== "object") {
+    prodNotes = {
+      audioPacing: "Natural conversational cadence (130-145 words per minute) with deliberate pauses after key stats.",
+      musicGenre: "Subtle ambient corporate / modern electronic underscore (ducked under voiceover).",
+      colorPalette: "Clean neutral background with primary brand accent for callout cards.",
+      talentInstructions: "Direct eye contact with lens, confident, approachable posture.",
+    };
+  }
+
+  return {
+    title,
+    objective,
+    targetAudience,
+    targetLanguage,
+    estimatedDuration,
+    format,
+    tone,
+    hook,
+    scenes,
+    narration: continuousNarration,
+    subtitles,
+    visualRecommendations,
+    onScreenText: onScreenTextSummary,
+    transitionNotes,
+    callToAction,
+    productionNotes: prodNotes,
+  };
+}
+
 function formatMarkdownFallback(deliverableId: string, data: Record<string, any>, title: string): string {
   const lines: string[] = [`# ${title}\n`];
 
@@ -103,17 +231,61 @@ function formatMarkdownFallback(deliverableId: string, data: Record<string, any>
       });
     }
   } else if (deliverableId === "video_package") {
-    if (data.duration_guidance) lines.push(`**Target Duration:** ${data.duration_guidance}\n`);
-    if (Array.isArray(data.scenes)) {
-      lines.push("## Scene Breakdown");
+    // Rich Video Package Markdown representation
+    if (data.estimatedDuration || data.format) {
+      lines.push(`**Duration:** ${data.estimatedDuration || "60-90s"} | **Format:** ${data.format || "16:9 Landscape"} | **Target Language:** ${data.targetLanguage || "English"}\n`);
+    }
+    if (data.objective) {
+      lines.push(`**Objective:** ${data.objective}\n`);
+    }
+    if (data.hook) {
+      const hookHeadline = typeof data.hook === "object" ? data.hook.headline : data.hook;
+      const hookTechnique = typeof data.hook === "object" ? data.hook.technique : "";
+      lines.push(`## Opening Hook\n> **"${hookHeadline}"**\n${hookTechnique ? `*(Technique: ${hookTechnique})*\n` : ""}`);
+    }
+    if (Array.isArray(data.scenes) && data.scenes.length > 0) {
+      lines.push("## Storyboard & Scene Breakdown\n");
       data.scenes.forEach((sc: any) => {
-        lines.push(`### Scene ${sc.scene_number || ""}`);
-        if (sc.visual_direction) lines.push(`**Visual:** ${sc.visual_direction}`);
-        if (sc.narration_script) lines.push(`**Narration:** "${sc.narration_script}"`);
-        if (sc.on_screen_text) lines.push(`**On-Screen Text:** ${sc.on_screen_text}\n`);
+        lines.push(`### Scene ${sc.sceneNumber || sc.scene_number || ""}: ${sc.sceneTitle || sc.scene_title || "Scene"}`);
+        lines.push(`- **Timestamp/Duration:** ${sc.timestamp || "15s"}`);
+        if (sc.visualDirection || sc.visual_direction) {
+          lines.push(`- **Visual Direction:** ${sc.visualDirection || sc.visual_direction}`);
+        }
+        if (sc.narration || sc.narration_script) {
+          lines.push(`- **Spoken Voiceover:** *"${sc.narration || sc.narration_script}"*`);
+        }
+        if (sc.onScreenText || sc.on_screen_text) {
+          lines.push(`- **On-Screen Text:** \`${sc.onScreenText || sc.on_screen_text}\``);
+        }
+        if (Array.isArray(sc.bRollSuggestions) && sc.bRollSuggestions.length > 0) {
+          lines.push(`- **B-Roll Suggestions:** ${sc.bRollSuggestions.join(", ")}`);
+        }
+        if (sc.transition) {
+          lines.push(`- **Transition:** ${sc.transition}`);
+        }
+        lines.push("");
       });
     }
-    if (data.subtitles) lines.push(`## Full Subtitles Transcript\n${data.subtitles}`);
+    if (data.narration) {
+      lines.push(`## Continuous Voiceover Script\n${data.narration}\n`);
+    }
+    if (data.subtitles) {
+      lines.push(`## Closed Captions & Subtitles\n\`\`\`text\n${data.subtitles}\n\`\`\`\n`);
+    }
+    if (data.callToAction) {
+      lines.push(`## Call to Action\n👉 **${data.callToAction}**\n`);
+    }
+    if (data.productionNotes) {
+      lines.push("## Production Notes");
+      if (typeof data.productionNotes === "object") {
+        if (data.productionNotes.audioPacing) lines.push(`- **Audio Pacing:** ${data.productionNotes.audioPacing}`);
+        if (data.productionNotes.musicGenre) lines.push(`- **Music Mood:** ${data.productionNotes.musicGenre}`);
+        if (data.productionNotes.colorPalette) lines.push(`- **Visual Style & Colors:** ${data.productionNotes.colorPalette}`);
+        if (data.productionNotes.talentInstructions) lines.push(`- **Talent Direction:** ${data.productionNotes.talentInstructions}`);
+      } else {
+        lines.push(String(data.productionNotes));
+      }
+    }
   } else {
     for (const [k, v] of Object.entries(data)) {
       lines.push(`**${k.replace(/_/g, " ")}**: ${typeof v === "object" ? JSON.stringify(v) : v}`);
@@ -174,7 +346,12 @@ export async function executeTransformation(request: GenerationRequestPayload): 
     if (deliverablesById[dId]) {
       const rawItem = deliverablesById[dId];
       const title = rawItem.title || defaultTitle;
-      const structuredData = typeof rawItem.structuredData === "object" ? rawItem.structuredData : {};
+      let structuredData = typeof rawItem.structuredData === "object" && rawItem.structuredData !== null ? rawItem.structuredData : {};
+      
+      if (dId === "video_package") {
+        structuredData = normalizeVideoPackage(structuredData, title);
+      }
+
       let content = typeof rawItem.content === "string" && rawItem.content.trim() ? rawItem.content.trim() : "";
       if (!content) {
         content = formatMarkdownFallback(dId, structuredData, title);

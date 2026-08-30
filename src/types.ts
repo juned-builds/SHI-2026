@@ -135,16 +135,70 @@ export interface DeliverablePipelineItem {
   promptSchemaReady: boolean;
 }
 
+export interface VideoScene {
+  sceneNumber: number;
+  timestamp?: string;
+  durationSeconds?: number;
+  sceneTitle: string;
+  narration: string;
+  onScreenText?: string;
+  visualDirection: string;
+  bRollSuggestions?: string[];
+  transition?: string;
+  emphasis?: string;
+  subtitleText?: string;
+}
+
+export interface VideoHook {
+  headline: string;
+  technique?: string;
+  rationale?: string;
+}
+
+export interface VideoProductionNotes {
+  audioPacing?: string;
+  musicGenre?: string;
+  colorPalette?: string;
+  talentInstructions?: string;
+}
+
+export interface VideoPackageData {
+  title: string;
+  objective?: string;
+  targetAudience?: string;
+  targetLanguage?: string;
+  estimatedDuration?: string;
+  format?: string;
+  tone?: string;
+  hook?: VideoHook | string;
+  scenes: VideoScene[];
+  narration: string;
+  subtitles: string;
+  visualRecommendations?: string[] | string;
+  onScreenText?: string[] | string;
+  transitionNotes?: string;
+  callToAction?: string;
+  productionNotes?: VideoProductionNotes | string;
+  validationWarnings?: string[];
+}
+
+export type VideoPackageViewMode =
+  | "storyboard"
+  | "script"
+  | "subtitles"
+  | "production_notes"
+  | "raw_json";
+
 export interface GeneratedDeliverable {
   deliverableId: DeliverableId;
   title: string;
   content: string;
-  structuredData?: Record<string, any> | null;
+  structuredData?: VideoPackageData | Record<string, any> | null;
   status: "completed" | "failed";
   error?: string | null;
   isEdited?: boolean;
   originalContent?: string;
-  originalStructuredData?: Record<string, any> | null;
+  originalStructuredData?: VideoPackageData | Record<string, any> | null;
   generatedAt?: string;
   lastEditedAt?: string;
 }

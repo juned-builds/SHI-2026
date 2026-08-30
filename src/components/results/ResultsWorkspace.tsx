@@ -294,6 +294,7 @@ export function ResultsWorkspace({
                   deliverable={activeDeliverable}
                   displayMode={displayMode}
                   onChangeDisplayMode={setDisplayMode}
+                  projectName={draft.name}
                 />
               )}
             </div>

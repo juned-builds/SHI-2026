@@ -188,20 +188,52 @@ export const DELIVERABLE_SPECIFICATIONS: Record<string, { name: string; descript
     },
   },
   video_package: {
-    name: "Video Package (Script, Scene Direction & Narration)",
-    description: "Comprehensive video package containing scene-by-scene script, visual directions, and narration",
+    name: "Video Package (Script, Storyboard, Narration & Production Plan)",
+    description: "Production-ready video package containing opening hook, scene-by-scene storyboard, spoken narration, synchronized subtitles, visual directions, and production notes",
     jsonStructure: {
-      title: "string: Video package title",
-      duration_guidance: "string: estimated video duration (e.g. 60-90 seconds)",
+      title: "string: Compelling title for the video project",
+      objective: "string: Core communication objective of this video",
+      targetAudience: "string: Target audience for this video",
+      targetLanguage: "string: Language of the script, narration, and captions",
+      estimatedDuration: "string: Estimated duration (e.g. '60-90 seconds' or '2-3 minutes')",
+      format: "string: Aspect ratio & format (e.g. '16:9 Landscape (YouTube/Web)' or '9:16 Vertical (Shorts/Reels)')",
+      tone: "string: Delivery tone and energy for narrator and visual pacing",
+      hook: {
+        headline: "string: Compelling opening hook statement or question (first 5-10 seconds)",
+        technique: "string: Strategy used e.g. 'Provocative Question / Surprising Statistic / Relatable Problem'",
+        rationale: "string: Why this hook captures target audience attention immediately"
+      },
       scenes: [
         {
-          scene_number: "integer",
-          visual_direction: "string: camera angle, b-roll, motion graphics instruction",
-          narration_script: "string: exact spoken voiceover line",
-          on_screen_text: "string: lower-third or overlay title text",
-        },
+          sceneNumber: 1,
+          timestamp: "0:00 - 0:15",
+          durationSeconds: 15,
+          sceneTitle: "string: Short descriptive title for this scene",
+          narration: "string: Spoken voiceover line (natural spoken tone, not dry document prose)",
+          onScreenText: "string: Lower-third overlay, stat callout, or title graphic (concise)",
+          visualDirection: "string: Practical camera framing, lighting, motion graphic, or presenter action",
+          bRollSuggestions: ["string: 1-2 practical stock footage or archival B-roll suggestions"],
+          transition: "string: e.g. 'Cut to presenter', 'Dynamic swipe right', 'Slow fade to next scene'",
+          emphasis: "string: Tone/pacing note e.g. 'Deliberate emphasis on key metric', 'High energy'",
+          subtitleText: "string: Synchronized caption line for this scene"
+        }
       ],
-      subtitles: "string: clean continuous transcript for subtitle generation",
+      narration: "string: Complete continuous spoken voiceover script across all scenes with natural flow",
+      subtitles: "string: Full closed-caption transcript with scene timestamps (e.g. [00:00] ...)",
+      visualRecommendations: [
+        "string: 2-3 styling guidelines (e.g. color grading, typography style, visual pacing)"
+      ],
+      onScreenText: [
+        "string: Summary of key on-screen text highlights"
+      ],
+      transitionNotes: "string: Guidance on scene flow, rhythm, and visual continuity",
+      callToAction: "string: Strong closing call-to-action for the target audience",
+      productionNotes: {
+        audioPacing: "string: Cadence, tempo (e.g. 130-140 words/min), and pauses",
+        musicGenre: "string: Background score genre, mood, and volume cues",
+        colorPalette: "string: Recommended visual color accents and grade",
+        talentInstructions: "string: Tone and body language instructions for presenter/voice talent"
+      }
     },
   },
 };
@@ -210,12 +242,18 @@ export function buildSystemInstruction(): string {
   return `You are the Core GenAI Content Transformation Engine for SIH 26154: 'Gen AI Platform for Automated Content Transformation'.
 Your mission is to perform rigorous, multi-deliverable content transformations on source text with strict fidelity, impeccable structural alignment, and full adherence to specified audience, tone, language, detail, objective, and style parameters.
 
-CRITICAL CONTENT INTEGRITY & SAFETY MANDATES:
-1. Strictly preserve all names, numbers, dates, locations, and facts from the source.
+CRITICAL CONTENT INTEGRITY & VIDEO PRODUCTION MANDATES:
+1. Strictly preserve all names, numbers, dates, locations, organizations, and facts from the source material.
 2. Do NOT hallucinate or fabricate unsupported statistics or factual claims.
-3. Explicitly distinguish between source-derived facts and synthesized recommendations.
-4. If target language is non-English, translate and localize naturally while preserving exact numbers and technical accuracy.
-5. Output must strictly be valid JSON conforming to the requested schema.`;
+3. Explicitly distinguish between source-derived facts and synthesized creative/production recommendations.
+4. For Video Packages:
+   - Produce natural spoken voiceover narration designed for listening, avoiding dense document-style prose.
+   - Craft a punchy, hook-driven opening that captures audience attention in the first 5-10 seconds.
+   - Maintain a coherent scene-by-scene progression with realistic durations and practical visual directions.
+   - Ensure every scene has spoken narration, visual directions, on-screen text, transitions, and subtitle captions.
+   - Provide full continuous narration and timestamped subtitles.
+5. If target language is non-English, author the script, narration, and subtitles in that language while preserving factual numbers and names.
+6. Output must strictly be valid JSON conforming to the requested schema.`;
 }
 
 export function buildTransformationPrompt(request: GenerationRequestPayload): string {
