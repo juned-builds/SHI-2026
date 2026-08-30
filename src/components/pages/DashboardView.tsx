@@ -152,7 +152,17 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
       {/* Recent Projects Section */}
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-slate-900">Recent Projects</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-base font-semibold text-slate-900">Recent Projects</h2>
+            <button
+              type="button"
+              onClick={() => onNavigate("history")}
+              className="text-xs text-slate-500 hover:text-emerald-700 font-medium flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>View History</span>
+              <ArrowRight className="w-3 h-3" />
+            </button>
+          </div>
           {recentProjects.length > 0 && (
             <button
               type="button"

@@ -2,6 +2,7 @@ import React from "react";
 import {
   LayoutDashboard,
   FolderKanban,
+  History as HistoryIcon,
   Settings,
   Sparkles,
   ChevronLeft,
@@ -35,6 +36,11 @@ const workspaceNavItems: NavItem[] = [
     label: "Projects",
     icon: FolderKanban,
   },
+  {
+    id: "history",
+    label: "History",
+    icon: HistoryIcon,
+  },
 ];
 
 const systemNavItems: NavItem[] = [
@@ -56,6 +62,7 @@ export function Sidebar({
   const isNavActive = (id: string) => {
     if (id === "dashboard") return currentRoute === "dashboard";
     if (id === "projects") return currentRoute === "projects" || currentRoute.startsWith("projects/");
+    if (id === "history") return currentRoute === "history" || currentRoute.startsWith("history/");
     if (id === "settings") return currentRoute === "settings";
     return currentRoute === id;
   };

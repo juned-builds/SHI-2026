@@ -17,6 +17,7 @@
 | **Module 0.7** | Deliverable Results Workspace, In-Memory Editing & Multi-Format Export Suite | **Completed** |
 | **Module 0.8** | Product Experience, Rendered Results & Local Project History (IndexedDB, History, Restores) | **Completed** |
 | **Module 0.9** | Video Package (Scripts, Scenes, Narration, Subtitles) Generation | **Completed** |
+| **Enhancement** | **Persistent History Workspace** (Global history timeline, search/filter, multi-mode grouping, restoration) | **Completed** |
 | **Module 1.0** | Final SIH Grand Finale Polish, Testing & Production Packaging | Planned |
 
 ---

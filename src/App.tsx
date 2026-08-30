@@ -7,6 +7,7 @@ import React, { useState } from "react";
 import { AppShell } from "./components/layout/AppShell";
 import { DashboardView } from "./components/pages/DashboardView";
 import { ProjectsView } from "./components/pages/ProjectsView";
+import { HistoryView } from "./components/pages/HistoryView";
 import { SettingsView } from "./components/pages/SettingsView";
 import { NewProjectView } from "./components/pages/NewProjectView";
 import { ConfigureView } from "./components/pages/ConfigureView";
@@ -32,6 +33,9 @@ export default function App() {
     useState<TransformationConfig | null>(null);
   const [generationSession, setGenerationSession] =
     useState<GenerationSession | null>(null);
+  const [openedFromHistory, setOpenedFromHistory] = useState<boolean>(false);
+  const [activeProjectName, setActiveProjectName] = useState<string>("");
+  const [activeGenerationNumber, setActiveGenerationNumber] = useState<number>(1);
 
   const getBreadcrumbs = () => {
     switch (currentRoute) {
@@ -39,6 +43,11 @@ export default function App() {
         return [
           { label: "Workspace", id: "dashboard" },
           { label: "Projects" },
+        ];
+      case "history":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "History" },
         ];
       case "projects/new":
         return [
@@ -62,6 +71,14 @@ export default function App() {
           { label: "Generation Workspace" },
         ];
       case "projects/results":
+        if (openedFromHistory) {
+          return [
+            { label: "Workspace", id: "dashboard" },
+            { label: "History", id: "history" },
+            { label: activeProjectName || "Project", id: "history" },
+            { label: `Generation #${activeGenerationNumber}` },
+          ];
+        }
         return [
           { label: "Workspace", id: "dashboard" },
           { label: "Projects", id: "projects" },
@@ -87,6 +104,8 @@ export default function App() {
     switch (currentRoute) {
       case "projects":
         return "Projects";
+      case "history":
+        return "Transformation History";
       case "projects/new":
         return "Create Transformation Project";
       case "projects/new/configure":
@@ -94,6 +113,9 @@ export default function App() {
       case "projects/generate":
         return "Generation Workspace";
       case "projects/results":
+        if (openedFromHistory) {
+          return `${activeProjectName || "Project"} — Generation #${activeGenerationNumber}`;
+        }
         return "Deliverable Results Workspace";
       case "settings":
         return "Settings";
@@ -104,16 +126,19 @@ export default function App() {
   };
 
   const handleContinueToConfigure = (draft: ProjectDraft) => {
+    setOpenedFromHistory(false);
     setProjectDraft(draft);
     setCurrentRoute("projects/new/configure");
   };
 
   const handleContinueToGenerate = (config: TransformationConfig) => {
+    setOpenedFromHistory(false);
     setTransformationConfig(config);
     setCurrentRoute("projects/generate");
   };
 
   const handleCancelProject = () => {
+    setOpenedFromHistory(false);
     setProjectDraft(null);
     setTransformationConfig(null);
     setGenerationSession(null);
@@ -121,10 +146,20 @@ export default function App() {
   };
 
   const handleNavigate = (route: string) => {
+    if (route !== "projects/results") {
+      setOpenedFromHistory(false);
+    }
     setCurrentRoute(route);
   };
 
-  const handleOpenProject = (project: ProjectRecord, generation?: GenerationRecord) => {
+  const handleOpenProject = (
+    project: ProjectRecord,
+    generation?: GenerationRecord,
+    isFromHistory?: boolean
+  ) => {
+    setOpenedFromHistory(!!isFromHistory);
+    setActiveProjectName(project.name || "Project");
+    setActiveGenerationNumber(generation?.generationNumber || 1);
     setProjectDraft(project.draft);
 
     if (generation && generation.deliverables && generation.deliverables.length > 0) {
@@ -160,6 +195,7 @@ export default function App() {
   };
 
   const handleNewTransformationForProject = (project: ProjectRecord) => {
+    setOpenedFromHistory(false);
     setProjectDraft(project.draft);
     setTransformationConfig(null);
     setGenerationSession(null);
@@ -176,14 +212,20 @@ export default function App() {
       {currentRoute === "dashboard" && (
         <DashboardView
           onNavigate={handleNavigate}
-          onOpenProject={handleOpenProject}
+          onOpenProject={(proj, gen) => handleOpenProject(proj, gen, false)}
         />
       )}
       {currentRoute === "projects" && (
         <ProjectsView
           onNavigate={handleNavigate}
-          onOpenProject={handleOpenProject}
+          onOpenProject={(proj, gen) => handleOpenProject(proj, gen, false)}
           onNewTransformationForProject={handleNewTransformationForProject}
+        />
+      )}
+      {currentRoute === "history" && (
+        <HistoryView
+          onNavigate={handleNavigate}
+          onOpenGeneration={(proj, gen) => handleOpenProject(proj, gen, true)}
         />
       )}
       {currentRoute === "projects/new" && (
@@ -219,6 +261,7 @@ export default function App() {
             draft={projectDraft}
             config={transformationConfig}
             session={generationSession}
+            isOpenedFromHistory={openedFromHistory}
             onUpdateSession={setGenerationSession}
             onNavigate={handleNavigate}
             onRegenerateAll={() => setCurrentRoute("projects/generate")}

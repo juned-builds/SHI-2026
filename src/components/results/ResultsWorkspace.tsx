@@ -33,6 +33,7 @@ export interface ResultsWorkspaceProps {
   draft: ProjectDraft | null;
   config: TransformationConfig | null;
   session: GenerationSession | null;
+  isOpenedFromHistory?: boolean;
   onUpdateSession?: (session: GenerationSession) => void;
   onNavigate: (route: string) => void;
   onRegenerateAll?: () => void;
@@ -42,6 +43,7 @@ export function ResultsWorkspace({
   draft,
   config,
   session,
+  isOpenedFromHistory,
   onUpdateSession,
   onNavigate,
   onRegenerateAll,
@@ -224,6 +226,7 @@ export function ResultsWorkspace({
         deliverables={deliverables}
         modelUsed={session?.modelUsed || "gemini-3.7-flash"}
         sessionId={session?.sessionId}
+        isOpenedFromHistory={isOpenedFromHistory}
         onNavigate={onNavigate}
         onExportAll={handleExportAll}
         onRegenerateAll={onRegenerateAll}

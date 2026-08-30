@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Settings,
   RotateCcw,
+  History,
 } from "lucide-react";
 import { GeneratedDeliverable, ProjectDraft } from "../../types";
 import { Button } from "../ui/Button";
@@ -18,6 +19,7 @@ export interface ResultsHeaderProps {
   deliverables: GeneratedDeliverable[];
   modelUsed?: string;
   sessionId?: string;
+  isOpenedFromHistory?: boolean;
   onNavigate: (route: string) => void;
   onExportAll: () => void;
   onRegenerateAll?: () => void;
@@ -28,6 +30,7 @@ export function ResultsHeader({
   deliverables,
   modelUsed = "gemini-3.7-flash",
   sessionId,
+  isOpenedFromHistory,
   onNavigate,
   onExportAll,
   onRegenerateAll,
@@ -40,13 +43,31 @@ export function ResultsHeader({
       {/* Top Breadcrumb / Nav Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
+          {isOpenedFromHistory && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={<History className="w-3.5 h-3.5 text-slate-500" />}
+                onClick={() => onNavigate("history")}
+                className="text-slate-600 hover:text-slate-900 -ml-2 text-xs"
+              >
+                Back to History
+              </Button>
+              <span className="text-slate-300">|</span>
+            </>
+          )}
+
           <Button
             type="button"
             variant="ghost"
             size="sm"
             icon={<ArrowLeft className="w-4 h-4 text-slate-500" />}
             onClick={() => onNavigate("projects/new/configure")}
-            className="text-slate-600 hover:text-slate-900 -ml-2 text-xs"
+            className={`text-slate-600 hover:text-slate-900 text-xs ${
+              isOpenedFromHistory ? "" : "-ml-2"
+            }`}
           >
             Back to Configuration
           </Button>

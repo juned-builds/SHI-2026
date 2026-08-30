@@ -551,3 +551,134 @@ export async function resetDeliverableInGeneration(
 
   return updatedGen;
 }
+
+/**
+ * Retrieves all stored generations across all projects, sorted newest first.
+ */
+export async function getAllGenerations(): Promise<GenerationRecord[]> {
+  const db = await getDatabase();
+
+  if (!db || !isIndexedDbAvailable) {
+    const list = Array.from(memoryStore.generations.values());
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORES.GENERATIONS, "readonly");
+      const store = tx.objectStore(STORES.GENERATIONS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const records: GenerationRecord[] = request.result || [];
+        records.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        resolve(records);
+      };
+
+      request.onerror = () => {
+        const list = Array.from(memoryStore.generations.values());
+        resolve(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      };
+    } catch (err) {
+      console.error("[LocalDB] getAllGenerations transaction error:", err);
+      const list = Array.from(memoryStore.generations.values());
+      resolve(list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+    }
+  });
+}
+
+/**
+ * Deletes a single generation record and syncs its parent project metadata.
+ */
+export async function deleteGeneration(generationId: string): Promise<boolean> {
+  if (!generationId) return false;
+
+  const targetGen = await getGeneration(generationId);
+  if (!targetGen) return false;
+
+  const projectId = targetGen.projectId;
+
+  // 1. Remove from memory store
+  memoryStore.generations.delete(generationId);
+
+  // 2. Remove from IndexedDB
+  const db = await getDatabase();
+  if (db && isIndexedDbAvailable) {
+    await new Promise<void>((resolve) => {
+      try {
+        const tx = db.transaction(STORES.GENERATIONS, "readwrite");
+        const store = tx.objectStore(STORES.GENERATIONS);
+        const req = store.delete(generationId);
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve();
+      } catch {
+        resolve();
+      }
+    });
+  }
+
+  // 3. Update associated project's latest generation reference and count
+  if (projectId) {
+    const remainingGenerations = await getGenerationsForProject(projectId);
+    const existingProject = await getProject(projectId);
+
+    if (existingProject) {
+      const now = new Date().toISOString();
+      const updatedProject: ProjectRecord = {
+        ...existingProject,
+        generationCount: remainingGenerations.length,
+        latestGenerationId: remainingGenerations.length > 0 ? remainingGenerations[0].id : null,
+        deliverableCount: remainingGenerations.length > 0 ? remainingGenerations[0].deliverableCount : 0,
+        status: remainingGenerations.length > 0 ? existingProject.status : "draft",
+        updatedAt: now,
+      };
+
+      await saveProject(updatedProject);
+    }
+  }
+
+  return true;
+}
+
+export interface HistoryStats {
+  totalProjects: number;
+  totalGenerations: number;
+  totalDeliverables: number;
+  lastActivity: string | null;
+}
+
+/**
+ * Computes live transformation history stats directly from IndexedDB.
+ */
+export async function getHistoryStats(): Promise<HistoryStats> {
+  const [projects, generations] = await Promise.all([
+    getAllProjects(),
+    getAllGenerations(),
+  ]);
+
+  let totalDeliverables = 0;
+  for (const gen of generations) {
+    totalDeliverables += gen.deliverables?.length || gen.deliverableCount || 0;
+  }
+
+  let latestTimestamp: number | null = null;
+  for (const p of projects) {
+    const t = new Date(p.updatedAt || p.createdAt).getTime();
+    if (!isNaN(t) && (latestTimestamp === null || t > latestTimestamp)) {
+      latestTimestamp = t;
+    }
+  }
+  for (const g of generations) {
+    const t = new Date(g.completedAt || g.createdAt).getTime();
+    if (!isNaN(t) && (latestTimestamp === null || t > latestTimestamp)) {
+      latestTimestamp = t;
+    }
+  }
+
+  return {
+    totalProjects: projects.length,
+    totalGenerations: generations.length,
+    totalDeliverables,
+    lastActivity: latestTimestamp ? new Date(latestTimestamp).toISOString() : null,
+  };
+}
