@@ -452,6 +452,37 @@ export function FactMeshAuditView({
         onExit={onExit}
       />
 
+      {/* Stale Audit Warning Banner if content was refined/edited after audit */}
+      {deliverable.factMeshAuditStale && (
+        <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-amber-100 rounded-lg text-amber-800 shrink-0">
+              <AlertTriangle className="w-5 h-5 text-amber-700" />
+            </div>
+            <div>
+              <h4 className="text-xs font-bold text-amber-950">
+                Content Modified After FactMesh Verification
+              </h4>
+              <p className="text-[11.5px] text-amber-800 mt-0.5">
+                The deliverable text was modified or surgically refined after this audit was generated. Re-run FactMesh verification to audit the updated text.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled={isOperationInProgress}
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+            onClick={() => runAudit(true)}
+            className="text-xs bg-amber-600 hover:bg-amber-700 text-white shrink-0 font-semibold shadow-xs"
+          >
+            Re-verify Deliverable
+          </Button>
+        </div>
+      )}
+
       {/* Hallucination Alert Banner (Visible only if unsupported claims > 0) */}
       {unsupportedCount > 0 && (
         <div className="p-4 bg-rose-50 border border-rose-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">

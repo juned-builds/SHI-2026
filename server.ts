@@ -4,6 +4,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { executeTransformation } from "./server/generationService";
 import { executeFactMeshAudit } from "./server/factMeshService";
+import { executeRefineSelection } from "./server/refinementService";
 import { testGeminiAvailability, STABLE_GEMINI_MODELS } from "./server/geminiService";
 import { classifyError } from "./server/errorHandling";
 
@@ -161,6 +162,78 @@ async function startServer() {
           retryable: classified.retryable,
           provider: classified.provider || "gemini",
           attempts: classified.attempts || 1,
+        },
+        detail: classified.message,
+      });
+    }
+  });
+
+  // Surgical Directive Refiner endpoint (Module 1.1)
+  app.post("/api/v1/generation/refine-selection", async (req: Request, res: Response) => {
+    try {
+      const payload = req.body;
+      if (!payload || typeof payload !== "object") {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid request payload.",
+            retryable: false,
+          },
+          detail: "Invalid request payload.",
+        });
+      }
+
+      if (!payload.selectedText || !payload.selectedText.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "selectedText cannot be empty.",
+            retryable: false,
+          },
+          detail: "selectedText cannot be empty.",
+        });
+      }
+
+      if (!payload.instruction || !payload.instruction.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "instruction cannot be empty.",
+            retryable: false,
+          },
+          detail: "instruction cannot be empty.",
+        });
+      }
+
+      const result = await executeRefineSelection(payload);
+
+      if (!result.success && result.error) {
+        const errorObj = typeof result.error === "string"
+          ? { code: "UNKNOWN_ERROR", message: result.error, retryable: false }
+          : result.error;
+
+        const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
+          : errorObj.code === "VALIDATION_ERROR" ? 400
+          : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "TIMEOUT_ERROR" ? 504
+          : errorObj.retryable ? 503 : 500;
+
+        return res.status(httpStatus).json(result);
+      }
+
+      return res.status(200).json(result);
+    } catch (err: any) {
+      const classified = classifyError(err, 1);
+      return res.status(classified.httpStatus).json({
+        success: false,
+        error: {
+          code: classified.code,
+          message: classified.message,
+          retryable: classified.retryable,
+          provider: classified.provider || "gemini",
         },
         detail: classified.message,
       });

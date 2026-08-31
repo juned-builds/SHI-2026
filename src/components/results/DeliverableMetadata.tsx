@@ -57,20 +57,32 @@ export function DeliverableMetadata({
 
       {/* FactMesh Grounding Status or Quick Trigger */}
       {audit ? (
-        <button
-          type="button"
-          onClick={onOpenFactMeshAudit}
-          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold cursor-pointer transition-all ${
-            audit.summary.integrityScore >= 85
-              ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
-              : audit.summary.integrityScore >= 65
-              ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
-              : "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100"
-          }`}
-        >
-          <ShieldCheck className="w-3 h-3" />
-          FactMesh: {audit.summary.integrityScore}% Score
-        </button>
+        deliverable.factMeshAuditStale ? (
+          <button
+            type="button"
+            onClick={onOpenFactMeshAudit}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-400 bg-amber-50 text-amber-900 text-[11px] font-semibold cursor-pointer transition-all hover:bg-amber-100"
+            title="Content changed after verification. Click to re-verify with FactMesh™."
+          >
+            <AlertTriangle className="w-3 h-3 text-amber-600" />
+            FactMesh: Re-audit Needed
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenFactMeshAudit}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold cursor-pointer transition-all ${
+              audit.summary.integrityScore >= 85
+                ? "bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100"
+                : audit.summary.integrityScore >= 65
+                ? "bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100"
+                : "bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100"
+            }`}
+          >
+            <ShieldCheck className="w-3 h-3" />
+            FactMesh: {audit.summary.integrityScore}% Score
+          </button>
+        )
       ) : onOpenFactMeshAudit ? (
         <button
           type="button"

@@ -201,7 +201,9 @@ export interface GeneratedDeliverable {
   originalStructuredData?: VideoPackageData | Record<string, any> | null;
   generatedAt?: string;
   lastEditedAt?: string;
+  lastRefinedAt?: string;
   factMeshAudit?: FactMeshAudit | null;
+  factMeshAuditStale?: boolean;
 }
 
 export type FactMeshClaimStatus = "verified" | "inferred" | "unsupported" | "not_a_fact";

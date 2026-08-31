@@ -140,6 +140,7 @@ export function ResultsWorkspace({
         return {
           ...d,
           factMeshAudit: audit,
+          factMeshAuditStale: false,
         };
       }
       return d;
@@ -182,6 +183,7 @@ export function ResultsWorkspace({
           isEdited: true,
           originalContent: d.originalContent !== undefined ? d.originalContent : d.content,
           lastEditedAt: new Date().toISOString(),
+          factMeshAuditStale: Boolean(d.factMeshAudit),
         };
       }
       return d;
@@ -511,6 +513,8 @@ export function ResultsWorkspace({
                 {isEditing ? (
                   <DeliverableEditor
                     deliverable={activeDeliverable}
+                    sourceText={draft.sourceText}
+                    language={config.language}
                     onSave={handleSaveEdit}
                     onResetToOriginal={handleResetToOriginal}
                     onCancel={() => setIsEditing(false)}
