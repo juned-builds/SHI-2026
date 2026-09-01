@@ -8,6 +8,8 @@ import { AppShell } from "./components/layout/AppShell";
 import { DashboardView } from "./components/pages/DashboardView";
 import { ProjectsView } from "./components/pages/ProjectsView";
 import { HistoryView } from "./components/pages/HistoryView";
+import { LibraryView, LibraryCategoryFilter } from "./components/pages/LibraryView";
+import { IntelligenceView, IntelligenceTab } from "./components/pages/IntelligenceView";
 import { SettingsView } from "./components/pages/SettingsView";
 import { NewProjectView } from "./components/pages/NewProjectView";
 import { ConfigureView } from "./components/pages/ConfigureView";
@@ -36,6 +38,7 @@ export default function App() {
   const [openedFromHistory, setOpenedFromHistory] = useState<boolean>(false);
   const [activeProjectName, setActiveProjectName] = useState<string>("");
   const [activeGenerationNumber, setActiveGenerationNumber] = useState<number>(1);
+  const [selectedDeliverableId, setSelectedDeliverableId] = useState<string | undefined>(undefined);
 
   const getBreadcrumbs = () => {
     switch (currentRoute) {
@@ -48,6 +51,49 @@ export default function App() {
         return [
           { label: "Workspace", id: "dashboard" },
           { label: "History" },
+        ];
+      case "library":
+      case "library/all":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Library" },
+          { label: "All Deliverables" },
+        ];
+      case "library/presentations":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Library", id: "library" },
+          { label: "Presentations" },
+        ];
+      case "library/social":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Library", id: "library" },
+          { label: "Social Posts" },
+        ];
+      case "library/briefs":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Library", id: "library" },
+          { label: "Briefs & Summaries" },
+        ];
+      case "library/advisories":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Library", id: "library" },
+          { label: "Field Advisories" },
+        ];
+      case "intelligence/factmesh":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Intelligence" },
+          { label: "FactMesh™ Audit" },
+        ];
+      case "intelligence/audiencelens":
+        return [
+          { label: "Workspace", id: "dashboard" },
+          { label: "Intelligence" },
+          { label: "AudienceLens™" },
         ];
       case "projects/new":
         return [
@@ -106,6 +152,21 @@ export default function App() {
         return "Projects";
       case "history":
         return "Transformation History";
+      case "library":
+      case "library/all":
+        return "All Deliverables Library";
+      case "library/presentations":
+        return "Presentations Library";
+      case "library/social":
+        return "Social Posts Library";
+      case "library/briefs":
+        return "Executive Briefs Library";
+      case "library/advisories":
+        return "Field Advisories Library";
+      case "intelligence/factmesh":
+        return "FactMesh™ Verification Intelligence";
+      case "intelligence/audiencelens":
+        return "AudienceLens™ Suitability Intelligence";
       case "projects/new":
         return "Create Transformation Project";
       case "projects/new/configure":
@@ -142,6 +203,7 @@ export default function App() {
     setProjectDraft(null);
     setTransformationConfig(null);
     setGenerationSession(null);
+    setSelectedDeliverableId(undefined);
     setCurrentRoute("projects");
   };
 
@@ -155,12 +217,14 @@ export default function App() {
   const handleOpenProject = (
     project: ProjectRecord,
     generation?: GenerationRecord,
-    isFromHistory?: boolean
+    isFromHistory?: boolean,
+    targetDeliverableId?: string
   ) => {
     setOpenedFromHistory(!!isFromHistory);
     setActiveProjectName(project.name || "Project");
     setActiveGenerationNumber(generation?.generationNumber || 1);
     setProjectDraft(project.draft);
+    setSelectedDeliverableId(targetDeliverableId);
 
     if (generation && generation.deliverables && generation.deliverables.length > 0) {
       setTransformationConfig(generation.config);
@@ -196,6 +260,14 @@ export default function App() {
     }
   };
 
+  const handleOpenDeliverableFromLibrary = (
+    project: ProjectRecord,
+    generation: GenerationRecord,
+    deliverableId: string
+  ) => {
+    handleOpenProject(project, generation, false, deliverableId);
+  };
+
   const handleUpdateSession = (updatedSession: GenerationSession | null) => {
     setGenerationSession(updatedSession);
     if (updatedSession?.draft) {
@@ -208,7 +280,17 @@ export default function App() {
     setProjectDraft(project.draft);
     setTransformationConfig(null);
     setGenerationSession(null);
+    setSelectedDeliverableId(undefined);
     setCurrentRoute("projects/new/configure");
+  };
+
+  // Helper to extract library filter from route
+  const getLibraryCategoryFromRoute = (route: string): LibraryCategoryFilter => {
+    if (route === "library/presentations") return "presentations";
+    if (route === "library/social") return "social";
+    if (route === "library/briefs") return "briefs";
+    if (route === "library/advisories") return "advisories";
+    return "all";
   };
 
   return (
@@ -235,6 +317,27 @@ export default function App() {
         <HistoryView
           onNavigate={handleNavigate}
           onOpenGeneration={(proj, gen) => handleOpenProject(proj, gen, true)}
+        />
+      )}
+      {currentRoute.startsWith("library") && (
+        <LibraryView
+          initialCategory={getLibraryCategoryFromRoute(currentRoute)}
+          onNavigate={handleNavigate}
+          onOpenDeliverable={handleOpenDeliverableFromLibrary}
+        />
+      )}
+      {currentRoute === "intelligence/factmesh" && (
+        <IntelligenceView
+          initialTab="factmesh"
+          onNavigate={handleNavigate}
+          onOpenDeliverable={handleOpenDeliverableFromLibrary}
+        />
+      )}
+      {currentRoute === "intelligence/audiencelens" && (
+        <IntelligenceView
+          initialTab="audiencelens"
+          onNavigate={handleNavigate}
+          onOpenDeliverable={handleOpenDeliverableFromLibrary}
         />
       )}
       {currentRoute === "projects/new" && (
@@ -271,6 +374,7 @@ export default function App() {
             config={transformationConfig}
             session={generationSession}
             isOpenedFromHistory={openedFromHistory}
+            initialDeliverableId={selectedDeliverableId}
             onUpdateSession={handleUpdateSession}
             onNavigate={handleNavigate}
             onRegenerateAll={() => setCurrentRoute("projects/generate")}

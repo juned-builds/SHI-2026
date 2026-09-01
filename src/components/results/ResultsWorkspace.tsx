@@ -42,6 +42,7 @@ export interface ResultsWorkspaceProps {
   config: TransformationConfig | null;
   session: GenerationSession | null;
   isOpenedFromHistory?: boolean;
+  initialDeliverableId?: string;
   onUpdateSession?: (session: GenerationSession) => void;
   onNavigate: (route: string) => void;
   onRegenerateAll?: () => void;
@@ -53,6 +54,7 @@ export function ResultsWorkspace({
   config,
   session,
   isOpenedFromHistory,
+  initialDeliverableId,
   onUpdateSession,
   onNavigate,
   onRegenerateAll,
@@ -63,6 +65,9 @@ export function ResultsWorkspace({
 
   const [deliverables, setDeliverables] = useState<GeneratedDeliverable[]>(initialDeliverables);
   const [selectedId, setSelectedId] = useState<DeliverableId>(() => {
+    if (initialDeliverableId && initialDeliverables.some((d) => d.deliverableId === initialDeliverableId)) {
+      return initialDeliverableId;
+    }
     return initialDeliverables[0]?.deliverableId || "executive_summary";
   });
   const [displayMode, setDisplayMode] = useState<DeliverableDisplayMode>("preview");
@@ -617,6 +622,7 @@ export function ResultsWorkspace({
                     displayMode={displayMode}
                     onChangeDisplayMode={setDisplayMode}
                     projectName={draft.name}
+                    onUpdateContent={handleSaveEdit}
                   />
                 )}
               </div>

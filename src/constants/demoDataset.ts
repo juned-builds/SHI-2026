@@ -440,21 +440,25 @@ For any help or query, call the 24x7 Toll-Free Kisan Helpline: **1800-180-1551**
   {
     deliverableId: "linkedin_post",
     title: "Public Brief & Social Media Awareness",
-    content: `📢 **BIG RELIEF FOR FARMERS: Digital Crop Insurance Scheme Launched!** 🌾🇮🇳
+    content: `🚜 India's digital transformation is reaching the fields.
 
-The Government of India launches the **₹4,200 Crore NIDCI Scheme** ensuring instant financial security for 1.25 Crore farmers.
+The Government of India has officially approved the National Initiative on Digital Crop Insurance (NIDCI) with a dedicated ₹4,200 crore outlay for FY 2026-27, modernizing risk protection for over 1.25 crore small and marginal farmers across 18 agro-climatic zones.
 
-✅ **7-Day Claim Settlements** (No more 60-day delays!)
-✅ **Nominal Premium:** Just 1.5% (Kharif) & 2% (Rabi)
-✅ **Direct Bank Transfer** via Aadhaar within 48 hours
-✅ **Village Camps Start:** 01 November 2026
+Key takeaways:
+🔹 ₹4,200 Cr initiative bridging public policy and field execution
+🔹 Automated NDVI satellite & drone assessment cutting claims from 60 days to 7 business days
+🔹 Direct Benefit Transfer (DBT) via Aadhaar Payment Bridge within 48 hours of certification
+🔹 Capped farmer premiums: 1.5% for Kharif and 2.0% for Rabi seasons
+🔹 24x7 Kisan Sahayata toll-free helpline (1800-180-1551) with 72-hour grievance resolution
 
-⚠️ **LAST DATE TO ENROLL: 30 November 2026**
+Why this matters:
+The biggest breakthrough isn't just financial assistance — it's the elimination of months-long bureaucratic delay through space technology and real-time biometric disbursement.
 
-📞 24x7 Kisan Helpline: **1800-180-1551**
-🔗 Register at your nearest CSC Center or Unified Agritech Portal.
+Registration begins across village Common Service Centers (CSCs) on 01 November 2026, with mandatory digital enrollment closing on 30 November 2026.
 
-#DigitalAgriculture #KisanKalyan #NIDCI #CropInsurance #AtmanirbharBharat`,
+What are your thoughts on integrating satellite telemetry directly into public insurance pipelines?
+
+#DigitalIndia #AgriTech #GovTech #PublicPolicy #CropInsurance #Innovation`,
     status: "completed",
   },
   {

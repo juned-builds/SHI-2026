@@ -3,6 +3,12 @@ import {
   LayoutDashboard,
   FolderKanban,
   History as HistoryIcon,
+  Library,
+  Presentation,
+  Share2,
+  FileText,
+  ShieldCheck,
+  Users,
   Settings,
   Sparkles,
   ChevronLeft,
@@ -43,6 +49,47 @@ const workspaceNavItems: NavItem[] = [
   },
 ];
 
+const libraryNavItems: NavItem[] = [
+  {
+    id: "library",
+    label: "All Deliverables",
+    icon: Library,
+  },
+  {
+    id: "library/presentations",
+    label: "Presentations",
+    icon: Presentation,
+  },
+  {
+    id: "library/social",
+    label: "Social Posts",
+    icon: Share2,
+  },
+  {
+    id: "library/briefs",
+    label: "Briefs & Summaries",
+    icon: FileText,
+  },
+  {
+    id: "library/advisories",
+    label: "Field Advisories",
+    icon: ShieldCheck,
+  },
+];
+
+const intelligenceNavItems: NavItem[] = [
+  {
+    id: "intelligence/factmesh",
+    label: "FactMesh™ Audit",
+    icon: ShieldCheck,
+  },
+  {
+    id: "intelligence/audiencelens",
+    label: "AudienceLens™",
+    icon: Users,
+  },
+];
+
 const systemNavItems: NavItem[] = [
   {
     id: "settings",
@@ -63,6 +110,7 @@ export function Sidebar({
     if (id === "dashboard") return currentRoute === "dashboard";
     if (id === "projects") return currentRoute === "projects" || currentRoute.startsWith("projects/");
     if (id === "history") return currentRoute === "history" || currentRoute.startsWith("history/");
+    if (id === "library") return currentRoute === "library" || currentRoute === "library/all";
     if (id === "settings") return currentRoute === "settings";
     return currentRoute === id;
   };
@@ -82,14 +130,14 @@ export function Sidebar({
                 onCloseMobile();
               }}
               title={isCollapsed ? item.label : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 active
                   ? "bg-slate-900 text-white shadow-xs"
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
               } ${isCollapsed ? "justify-center px-2" : ""}`}
             >
               <Icon
-                className={`w-5 h-5 shrink-0 transition-colors ${
+                className={`w-4 h-4 shrink-0 transition-colors ${
                   active ? "text-white" : "text-slate-500"
                 }`}
               />
@@ -154,11 +202,11 @@ export function Sidebar({
         </div>
 
         {/* Navigation Content */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 scrollbar-thin">
           {/* Workspace Group */}
           <div>
             {!isCollapsed ? (
-              <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 Workspace
               </p>
             ) : (
@@ -167,10 +215,34 @@ export function Sidebar({
             {renderNavLinks(workspaceNavItems)}
           </div>
 
+          {/* Library Group */}
+          <div>
+            {!isCollapsed ? (
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Library
+              </p>
+            ) : (
+              <div className="h-px bg-slate-100 my-2 mx-1" />
+            )}
+            {renderNavLinks(libraryNavItems)}
+          </div>
+
+          {/* Intelligence Group */}
+          <div>
+            {!isCollapsed ? (
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
+                Intelligence
+              </p>
+            ) : (
+              <div className="h-px bg-slate-100 my-2 mx-1" />
+            )}
+            {renderNavLinks(intelligenceNavItems)}
+          </div>
+
           {/* System Group */}
           <div>
             {!isCollapsed ? (
-              <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
                 System
               </p>
             ) : (

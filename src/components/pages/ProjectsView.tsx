@@ -413,6 +413,23 @@ export function ProjectsView({
                       "{project.sourceMetadata.excerpt}"
                     </p>
                   )}
+
+                  {/* Intelligence & Transformation Pipeline Summary */}
+                  <div className="flex items-center gap-2 flex-wrap text-xs pt-1">
+                    <span className="inline-flex items-center gap-1 font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      FactMesh™ Verified
+                    </span>
+
+                    <span className="inline-flex items-center gap-1 font-medium text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                      <Sparkles className="w-3 h-3 text-indigo-600" />
+                      AudienceLens™ Scored
+                    </span>
+
+                    <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+                      Source → Multi-Format Synthesis → Verified Output
+                    </span>
+                  </div>
                 </div>
 
                 {/* Lower row: Badges and Action Buttons */}

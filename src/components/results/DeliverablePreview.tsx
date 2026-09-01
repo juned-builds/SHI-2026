@@ -15,12 +15,14 @@ import { GeneratedDeliverable, DeliverableDisplayMode } from "../../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { VideoPackageViewer } from "./video/VideoPackageViewer";
 import { PresentationDeckViewer } from "./presentation/PresentationDeckViewer";
+import { LinkedInPostPreview } from "./linkedin/LinkedInPostPreview";
 
 export interface DeliverablePreviewProps {
   deliverable: GeneratedDeliverable;
   displayMode: DeliverableDisplayMode;
   onChangeDisplayMode: (mode: DeliverableDisplayMode) => void;
   projectName?: string;
+  onUpdateContent?: (newContent: string) => void;
 }
 
 export function DeliverablePreview({
@@ -28,8 +30,10 @@ export function DeliverablePreview({
   displayMode,
   onChangeDisplayMode,
   projectName,
+  onUpdateContent,
 }: DeliverablePreviewProps) {
   const isPresentation = deliverable.deliverableId === "presentation";
+  const isLinkedIn = deliverable.deliverableId === "linkedin_post";
   const hasStructuredData =
     (deliverable.structuredData &&
       typeof deliverable.structuredData === "object" &&
@@ -114,6 +118,12 @@ export function DeliverablePreview({
             markdownContent={deliverable.content}
             deliverableTitle={deliverable.title}
             projectName={projectName}
+          />
+        ) : isLinkedIn ? (
+          <LinkedInPostPreview
+            content={deliverable.content}
+            projectName={projectName}
+            onUpdateContent={onUpdateContent}
           />
         ) : (
           <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs">
