@@ -130,9 +130,16 @@ export function FactMeshHeader({
               <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
               FactMesh™ Provenance Engine
             </div>
-            <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
-              v1.0 • Grounding Matrix
-            </span>
+            {audit.auditId === "demo-audit-nidci-001" || audit.auditId?.startsWith("demo-") ? (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[11px] font-semibold">
+                <Sparkles className="w-3 h-3 text-emerald-600" />
+                Sample Provenance Matrix
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 font-mono hidden sm:inline">
+                v1.0 • Grounding Matrix
+              </span>
+            )}
           </div>
 
           <h2 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2 pt-1">

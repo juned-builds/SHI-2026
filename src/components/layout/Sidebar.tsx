@@ -135,11 +135,8 @@ export function Sidebar({
             </div>
             {!isCollapsed && (
               <div className="flex flex-col text-left">
-                <span className="text-sm font-semibold tracking-tight leading-none text-slate-900">
+                <span className="text-sm font-bold tracking-tight text-slate-900">
                   TransformAI
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium tracking-wide mt-1">
-                  SIH 26154
                 </span>
               </div>
             )}

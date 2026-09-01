@@ -11,6 +11,12 @@ import {
   CheckCircle2,
   FileText,
   UploadCloud,
+  ShieldCheck,
+  Users,
+  Presentation,
+  Video,
+  PlayCircle,
+  Zap,
 } from "lucide-react";
 import { PageContainer } from "../layout/PageContainer";
 import { PageHeader } from "../layout/PageHeader";
@@ -18,7 +24,8 @@ import { Button } from "../ui/Button";
 import { Card, CardContent } from "../ui/Card";
 import { EmptyState } from "../ui/EmptyState";
 import { ProjectRecord, GenerationRecord } from "../../types";
-import { getAllProjects, getGeneration } from "../../services/db";
+import { getAllProjects, getGeneration, saveProject, saveGeneration } from "../../services/db";
+import { DEMO_PROJECT_RECORD, DEMO_GENERATION_RECORD } from "../../constants/demoDataset";
 
 export interface DashboardViewProps {
   onNavigate: (route: string) => void;
@@ -41,6 +48,23 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
         setIsLoading(false);
       });
   }, []);
+
+  const handleOpenSampleProject = async () => {
+    try {
+      await saveProject(DEMO_PROJECT_RECORD);
+      await saveGeneration(DEMO_GENERATION_RECORD);
+      if (onOpenProject) {
+        onOpenProject(DEMO_PROJECT_RECORD, DEMO_GENERATION_RECORD);
+      } else {
+        onNavigate("projects/results");
+      }
+    } catch (err) {
+      console.error("Failed to load sample project dataset:", err);
+      if (onOpenProject) {
+        onOpenProject(DEMO_PROJECT_RECORD, DEMO_GENERATION_RECORD);
+      }
+    }
+  };
 
   const handleOpenLatest = async (project: ProjectRecord) => {
     if (!project.latestGenerationId) {
@@ -76,43 +100,61 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
       {/* Welcome Header */}
       <PageHeader
         title="Dashboard"
-        description="Transform multimodal source content into multiple structured deliverables."
-        badge="Module 0.8 Live"
+        description="Transform multimodal source content into multiple structured, audience-ready deliverables."
         action={
-          <Button
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => onNavigate("projects/new")}
-          >
-            New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              icon={<Sparkles className="w-4 h-4 text-emerald-600" />}
+              onClick={handleOpenSampleProject}
+              className="text-xs border-slate-200 text-slate-700 bg-white hover:bg-slate-50 font-medium"
+            >
+              Explore Sample
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => onNavigate("projects/new")}
+            >
+              New Project
+            </Button>
+          </div>
         }
       />
 
       {/* Conceptual Transformation Workflow Blueprint */}
-      <Card className="mb-8 bg-linear-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-0">
+      <Card className="mb-6 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-0 shadow-md">
         <CardContent className="p-6 sm:p-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="space-y-2 max-w-lg">
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white/90 text-xs font-medium backdrop-blur-xs">
-                <Sparkles className="w-3.5 h-3.5 text-blue-300" />
-                <span>Transformation Pipeline</span>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-slate-300 text-xs font-medium backdrop-blur-xs">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Multimodal Content Transformation</span>
               </div>
               <h2 className="text-xl font-bold text-white tracking-tight">
-                Transform your next piece of content
+                Transform complex source material into multi-channel communication
               </h2>
               <p className="text-sm text-slate-300 leading-relaxed">
-                One source input parsed and transformed into executive summaries, social posts, presentation decks, and video production packages.
+                One source input parsed and synthesized into executive summaries, field advisories, social posts, presentation decks, and video production packages.
               </p>
             </div>
 
-            <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="w-full md:w-auto flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+              <Button
+                variant="primary"
+                size="md"
+                icon={<Sparkles className="w-4 h-4 fill-emerald-500 text-slate-900" />}
+                onClick={handleOpenSampleProject}
+                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold shadow-md"
+              >
+                Explore Sample
+              </Button>
               <Button
                 variant="secondary"
                 size="md"
                 icon={<Plus className="w-4 h-4 text-slate-900" />}
                 onClick={() => onNavigate("projects/new")}
-                className="bg-white text-slate-900 hover:bg-slate-100 shadow-md font-semibold"
+                className="bg-white text-slate-900 hover:bg-slate-100 font-semibold"
               >
                 Create New Project
               </Button>
@@ -148,6 +190,40 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
           </div>
         </CardContent>
       </Card>
+
+      {/* Sample Project Callout */}
+      <div className="mb-8 p-4 sm:p-5 rounded-xl bg-slate-50 border border-slate-200">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Sample Project
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="text-xs font-medium text-slate-600">
+                Policy Document Transformation
+              </span>
+            </div>
+            <h3 className="text-sm font-semibold text-slate-900">
+              Explore a Sample Project
+            </h3>
+            <p className="text-xs text-slate-600">
+              See how TransformAI transforms a policy document into multiple ready-to-use deliverables.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<ArrowRight className="w-3.5 h-3.5 text-slate-600" />}
+              onClick={handleOpenSampleProject}
+              className="bg-white hover:bg-slate-100 text-slate-800 border-slate-300 font-medium"
+            >
+              Explore Sample
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Recent Projects Section */}
       <section className="space-y-4">
@@ -186,9 +262,14 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
             <EmptyState
               icon={<FolderKanban className="w-6 h-6 text-slate-400" />}
               title="No projects recorded yet"
-              description="Create your first project to begin transforming your source material into multiple deliverables."
+              description="Explore a sample project or create a new transformation project from your own source text or document."
               primaryAction={{
-                label: "New Project",
+                label: "Explore Sample",
+                icon: <Sparkles className="w-4 h-4" />,
+                onClick: handleOpenSampleProject,
+              }}
+              secondaryAction={{
+                label: "Create New Project",
                 icon: <Plus className="w-4 h-4" />,
                 onClick: () => onNavigate("projects/new"),
               }}
@@ -242,7 +323,7 @@ export function DashboardView({ onNavigate, onOpenProject }: DashboardViewProps)
                     size="sm"
                     icon={<ArrowRight className="w-3.5 h-3.5" />}
                     onClick={() => handleOpenLatest(project)}
-                    className="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                    className="text-xs text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 font-medium"
                   >
                     Open
                   </Button>

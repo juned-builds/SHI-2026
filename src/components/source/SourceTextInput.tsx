@@ -1,5 +1,6 @@
 import React from "react";
-import { AlignLeft, Trash2 } from "lucide-react";
+import { AlignLeft, Trash2, Sparkles } from "lucide-react";
+import { DEMO_SOURCE_TEXT } from "../../constants/demoDataset";
 
 export interface SourceTextInputProps {
   value: string;
@@ -18,6 +19,10 @@ export function SourceTextInput({
   const trimmedLength = value.trim().length;
   const wordCount = trimmedLength > 0 ? value.trim().split(/\s+/).length : 0;
 
+  const handleLoadSample = () => {
+    onChange(DEMO_SOURCE_TEXT);
+  };
+
   return (
     <div className="w-full space-y-2">
       <div className="flex items-center justify-between">
@@ -29,17 +34,31 @@ export function SourceTextInput({
           <span>Pasted Content & Raw Text</span>
         </label>
 
-        {charCount > 0 && onClear && (
-          <button
-            type="button"
-            onClick={onClear}
-            className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
-            title="Clear text"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span>Clear</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {trimmedLength === 0 && (
+            <button
+              type="button"
+              onClick={handleLoadSample}
+              className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-medium cursor-pointer transition-colors px-2 py-0.5 rounded-md hover:bg-indigo-50 border border-indigo-200"
+              title="Load sample policy text"
+            >
+              <Sparkles className="w-3 h-3 text-indigo-500" />
+              <span>Load Sample Text</span>
+            </button>
+          )}
+
+          {charCount > 0 && onClear && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-600 transition-colors cursor-pointer"
+              title="Clear text"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative">
@@ -71,3 +90,4 @@ export function SourceTextInput({
     </div>
   );
 }
+

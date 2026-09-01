@@ -119,8 +119,8 @@ export function SystemHealthIndicator() {
             </div>
 
             <div className="pt-2 border-t border-slate-100 text-[10.5px] text-slate-500 flex items-center justify-between">
-              <span>SIH Problem Statement 26154</span>
-              <span className="text-emerald-700 font-semibold">Demo Ready</span>
+              <span>TransformAI Engine</span>
+              <span className="text-emerald-700 font-semibold">Ready</span>
             </div>
           </div>
         </>

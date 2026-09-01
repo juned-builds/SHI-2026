@@ -69,7 +69,7 @@ export function SettingsView() {
             <CardContent className="space-y-4">
               <Input
                 label="Workspace Name"
-                defaultValue="SIH 26154 Content Intelligence"
+                defaultValue="TransformAI Content Intelligence"
                 disabled
                 helperText="Fixed for local execution environment"
               />

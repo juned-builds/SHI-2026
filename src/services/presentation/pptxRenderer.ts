@@ -33,8 +33,8 @@ export async function generatePowerPointPresentation(
     pptx.layout = "LAYOUT_16x9";
     pptx.title = deckData.deckTitle;
     pptx.subject = "TransformAI Content Transformation Deliverable";
-    pptx.author = "TransformAI • SIH 26154";
-    pptx.company = "Ministry / Enterprise Transformation System";
+    pptx.author = "TransformAI";
+    pptx.company = "TransformAI";
 
     const totalSlides = deckData.slides.length;
 

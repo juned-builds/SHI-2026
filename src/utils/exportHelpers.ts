@@ -122,7 +122,7 @@ export function buildCombinedExportMarkdown(
     : draft.sourceText;
   lines.push(sourcePreview);
   lines.push("```\n");
-  lines.push(`\n*End of Transformation Bundle — SIH 26154 Automated Content Transformation Platform*`);
+  lines.push(`\n*End of Transformation Bundle — TransformAI Content Transformation Platform*`);
 
   return lines.join("\n");
 }

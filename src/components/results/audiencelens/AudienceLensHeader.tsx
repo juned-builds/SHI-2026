@@ -56,7 +56,7 @@ export function AudienceLensHeader({
               {isShowcase ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 text-[11px] font-semibold">
                   <Sparkles className="w-3 h-3 text-emerald-600" />
-                  Showcase Demo • Zero API Usage
+                  Sample Evaluation
                 </span>
               ) : report && !isStale ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10.5px] font-medium">

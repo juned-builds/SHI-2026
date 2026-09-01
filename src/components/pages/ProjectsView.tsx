@@ -86,7 +86,7 @@ export function ProjectsView({
       await saveProject(DEMO_PROJECT_RECORD);
       await saveGeneration(DEMO_GENERATION_RECORD);
       await fetchProjects();
-      setNotification("Showcase demo project (NIDCI 2026) loaded successfully.");
+      setNotification("Sample project loaded successfully.");
       setTimeout(() => setNotification(null), 4000);
       if (onOpenProject) {
         onOpenProject(DEMO_PROJECT_RECORD, DEMO_GENERATION_RECORD);
@@ -221,12 +221,12 @@ export function ProjectsView({
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
-              icon={<PlayCircle className="w-4 h-4 text-indigo-600" />}
+              icon={<Sparkles className="w-4 h-4 text-emerald-600" />}
               onClick={handleLoadDemoDataset}
-              className="text-xs border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-900"
-              title="Load full pre-computed NIDCI demo dataset (Zero Quota)"
+              className="text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium"
+              title="Load sample policy transformation project"
             >
-              Load Showcase Demo
+              Explore Sample
             </Button>
             <Button
               variant="primary"
@@ -333,8 +333,8 @@ export function ProjectsView({
             secondaryAction={
               !searchQuery
                 ? {
-                    label: "Load Showcase Demo (Zero Quota)",
-                    icon: <PlayCircle className="w-4 h-4" />,
+                    label: "Explore Sample Project",
+                    icon: <Sparkles className="w-4 h-4" />,
                     onClick: handleLoadDemoDataset,
                   }
                 : undefined
