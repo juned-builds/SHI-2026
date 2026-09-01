@@ -204,6 +204,64 @@ export interface GeneratedDeliverable {
   lastRefinedAt?: string;
   factMeshAudit?: FactMeshAudit | null;
   factMeshAuditStale?: boolean;
+  audienceLensReport?: AudienceLensReport | null;
+  audienceLensStale?: boolean;
+}
+
+export type AudiencePersonaId =
+  | "rural_citizen"
+  | "senior_executive"
+  | "field_worker"
+  | string;
+
+export interface JargonTermItem {
+  term: string;
+  issue: string;
+  suggestedExplanation: string;
+}
+
+export interface ConfusingSectionItem {
+  excerpt: string;
+  issue: string;
+  suggestion: string;
+}
+
+export interface AudiencePersonaEvaluation {
+  persona: AudiencePersonaId;
+  personaName: string;
+  overallScore: number;
+  clarityScore: number;
+  comprehensionScore: number;
+  comprehensionLevel: "High" | "Moderate" | "Low" | "Requires Clarification" | string;
+  actionabilityScore: number;
+  jargonCount: number;
+  jargonTerms: JargonTermItem[];
+  strengths: string[];
+  weaknesses: string[];
+  confusingSections: ConfusingSectionItem[];
+  recommendations: string[];
+  adaptationSuggestion: string;
+}
+
+export interface AudienceLensReadability {
+  readingDifficulty: "Easy" | "Moderate" | "Complex" | "Highly Technical" | string;
+  readingScore: number;
+  approxReadingLevel: string;
+  avgSentenceLength: number;
+  jargonDensity: "Low" | "Medium" | "High" | string;
+  actionClarity: "Excellent" | "Good" | "Needs Guidance" | "Unclear" | string;
+  bestSuitedAudience: string;
+  audienceRequiringAdaptation: string;
+}
+
+export interface AudienceLensReport {
+  reportId: string;
+  deliverableId: DeliverableId;
+  contentHash: string;
+  evaluatedAt: string;
+  modelUsed?: string;
+  personas: AudiencePersonaEvaluation[];
+  readability: AudienceLensReadability;
 }
 
 export type FactMeshClaimStatus = "verified" | "inferred" | "unsupported" | "not_a_fact";

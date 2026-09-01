@@ -191,10 +191,10 @@ export function classifyError(err: any, attempts = 1): ClassifiedError {
       code: "VALIDATION_ERROR",
       message: rawMsg.includes("cannot be empty")
         ? rawMsg
-        : "Invalid request payload for FactMesh grounding audit.",
+        : "Invalid request payload for AI analysis.",
       userMessage: rawMsg.includes("cannot be empty")
         ? rawMsg
-        : "Invalid request payload for FactMesh grounding audit.",
+        : "Invalid request payload for AI analysis.",
       retryable: false,
       httpStatus: 400,
       attempts,
@@ -281,8 +281,8 @@ export function classifyError(err: any, attempts = 1): ClassifiedError {
   // 9. Fallback
   return {
     code: "UNKNOWN_ERROR",
-    message: "FactMesh grounding audit encountered an error. Your deliverable is safe.",
-    userMessage: "FactMesh grounding audit encountered an error. Your deliverable is safe.",
+    message: "The AI service encountered an unexpected error. Your deliverable is safe.",
+    userMessage: "The AI service encountered an unexpected error. Your deliverable is safe.",
     retryable: isRetryableError(err),
     httpStatus: 500,
     attempts,

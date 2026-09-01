@@ -13,9 +13,12 @@ import {
 import { GeneratedDeliverable } from "../../types";
 import { Button } from "../ui/Button";
 import { InlineRefinerPopover } from "./refiner/InlineRefinerPopover";
+import { ConsistencyWarningModal } from "./diff/ConsistencyWarningModal";
+import { generateConsistencyReport, ConsistencyIssue } from "../../utils/localIntelligence";
 
 export interface DeliverableEditorProps {
   deliverable: GeneratedDeliverable;
+  allDeliverables?: GeneratedDeliverable[];
   sourceText?: string;
   language?: string;
   onSave: (updatedContent: string) => void;
@@ -25,6 +28,7 @@ export interface DeliverableEditorProps {
 
 export function DeliverableEditor({
   deliverable,
+  allDeliverables = [],
   sourceText,
   language,
   onSave,
@@ -50,6 +54,10 @@ export function DeliverableEditor({
   } | null>(null);
   const [isRefinerOpen, setIsRefinerOpen] = useState<boolean>(false);
 
+  // Local Cross-Deliverable Consistency State
+  const [consistencyIssues, setConsistencyIssues] = useState<ConsistencyIssue[]>([]);
+  const [isConsistencyModalOpen, setIsConsistencyModalOpen] = useState<boolean>(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Sync if deliverable changes
@@ -59,12 +67,29 @@ export function DeliverableEditor({
     setIsRefinerOpen(false);
     setSelectedRange(null);
     setFloatingTriggerPos(null);
+    setConsistencyIssues([]);
+    setIsConsistencyModalOpen(false);
   }, [deliverable.deliverableId, deliverable.content]);
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
     setHasUnsavedChanges(val !== deliverable.content);
+
+    // Compute local consistency report against all other project deliverables
+    if (allDeliverables.length > 1 && deliverable.content) {
+      const report = generateConsistencyReport(
+        allDeliverables.map((d) => ({
+          deliverableId: d.deliverableId,
+          title: d.title,
+          content: d.deliverableId === deliverable.deliverableId ? val : d.content,
+        })),
+        deliverable.deliverableId,
+        deliverable.content,
+        val
+      );
+      setConsistencyIssues(report.issues);
+    }
   };
 
   const handleSave = () => {
@@ -259,6 +284,25 @@ export function DeliverableEditor({
         )}
       </div>
 
+      {/* Local Cross-Deliverable Consistency Alert Banner */}
+      {consistencyIssues.length > 0 && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 text-amber-900">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Consistency Alert:</strong> {consistencyIssues.length} cross-deliverable discrepancy detected (e.g. conflicting dates or numbers).
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsConsistencyModalOpen(true)}
+            className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-md font-semibold text-[11px] shrink-0 transition-colors cursor-pointer"
+          >
+            Review Discrepancies
+          </button>
+        </div>
+      )}
+
       {/* Footer Controls */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2">
         <div className="flex items-center gap-2">
@@ -311,6 +355,13 @@ export function DeliverableEditor({
           </Button>
         </div>
       </div>
+
+      {/* Consistency Warning Review Modal */}
+      <ConsistencyWarningModal
+        isOpen={isConsistencyModalOpen}
+        issues={consistencyIssues}
+        onClose={() => setIsConsistencyModalOpen(false)}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   DeliverableDisplayMode,
   PersistenceStatus,
   FactMeshAudit,
+  AudienceLensReport,
 } from "../../types";
 import { Card } from "../ui/Card";
 import { ResultsHeader } from "./ResultsHeader";
@@ -21,6 +22,7 @@ import { SaveProjectModal } from "./SaveProjectModal";
 import { DiscardProjectModal } from "./DiscardProjectModal";
 import { ResultsEmptyState } from "./ResultsEmptyState";
 import { FactMeshAuditView } from "./audit/FactMeshAuditView";
+import { AudienceLensView } from "./audiencelens/AudienceLensView";
 import { regenerateSingleDeliverableApi } from "../../services/generationApi";
 import {
   buildCombinedExportMarkdown,
@@ -66,6 +68,7 @@ export function ResultsWorkspace({
   const [displayMode, setDisplayMode] = useState<DeliverableDisplayMode>("preview");
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isFactMeshAuditOpen, setIsFactMeshAuditOpen] = useState<boolean>(false);
+  const [isAudienceLensOpen, setIsAudienceLensOpen] = useState<boolean>(false);
   const [isRegenerateDialogOpen, setIsRegenerateDialogOpen] = useState<boolean>(false);
   const [isRegeneratingSingle, setIsRegeneratingSingle] = useState<boolean>(false);
   const [singleRegenError, setSingleRegenError] = useState<string | null>(null);
@@ -131,6 +134,8 @@ export function ResultsWorkspace({
     setSelectedId(id);
     setIsEditing(false);
     setDisplayMode("preview");
+    setIsFactMeshAuditOpen(false);
+    setIsAudienceLensOpen(false);
   };
 
   // Handle caching and persisting FactMesh Grounding audit results
@@ -173,6 +178,81 @@ export function ResultsWorkspace({
     }
   };
 
+  // Handle caching and persisting AudienceLens™ Communication Intelligence report
+  const handleUpdateDeliverableAudienceLens = (report: AudienceLensReport) => {
+    const updated = deliverables.map((d) => {
+      if (d.deliverableId === selectedId) {
+        return {
+          ...d,
+          audienceLensReport: report,
+          audienceLensStale: false,
+        };
+      }
+      return d;
+    });
+
+    setDeliverables(updated);
+    if (session && onUpdateSession) {
+      onUpdateSession({
+        ...session,
+        generatedDeliverables: updated,
+      });
+    }
+
+    const isProjectAlreadySaved = Boolean(
+      session?.projectId || session?.isSaved || persistenceStatus === "saved" || persistenceStatus === "dirty"
+    );
+    if (isProjectAlreadySaved) {
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        saveGenerationAndSyncProject(draft, config, updated, {
+          projectId: session?.projectId,
+          generationId: targetGenId,
+          modelUsed: session?.modelUsed || "gemini-3.7-flash",
+        }).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not auto-sync AudienceLens report to IndexedDB:", err);
+        });
+      }
+    }
+  };
+
+  // Handle applying an AudienceLens™ persona adaptation
+  const handleApplyAudienceAdaptation = (adaptedContent: string, personaName: string) => {
+    const updated = deliverables.map((d) => {
+      if (d.deliverableId === selectedId) {
+        return {
+          ...d,
+          content: adaptedContent,
+          isEdited: true,
+          originalContent: d.originalContent !== undefined ? d.originalContent : d.content,
+          lastEditedAt: new Date().toISOString(),
+          // Invalidate FactMesh audit: marked as "Re-verification Required"
+          factMeshAuditStale: Boolean(d.factMeshAudit),
+          audienceLensStale: true,
+        };
+      }
+      return d;
+    });
+
+    const isProjectAlreadySaved = Boolean(
+      session?.projectId || session?.isSaved || persistenceStatus === "saved" || persistenceStatus === "dirty"
+    );
+    const nextStatus: PersistenceStatus = isProjectAlreadySaved ? "dirty" : "unsaved";
+    setPersistenceStatus(nextStatus);
+
+    updateSessionDeliverables(updated, nextStatus);
+    setIsAudienceLensOpen(false);
+
+    if (isProjectAlreadySaved) {
+      const targetGenId = session?.generationId || session?.sessionId;
+      if (targetGenId) {
+        updateDeliverableInGeneration(targetGenId, selectedId, adaptedContent).catch((err) => {
+          console.warn("[ResultsWorkspace] Could not persist adaptation to IndexedDB:", err);
+        });
+      }
+    }
+  };
+
   // Handle local save of deliverable edits
   const handleSaveEdit = (newContent: string) => {
     const updated = deliverables.map((d) => {
@@ -184,6 +264,7 @@ export function ResultsWorkspace({
           originalContent: d.originalContent !== undefined ? d.originalContent : d.content,
           lastEditedAt: new Date().toISOString(),
           factMeshAuditStale: Boolean(d.factMeshAudit),
+          audienceLensStale: Boolean(d.audienceLensReport),
         };
       }
       return d;
@@ -448,13 +529,22 @@ export function ResultsWorkspace({
         onRegenerateAll={onRegenerateAll}
       />
 
-      {/* Main Content Layout: FactMesh Audit View OR Dual-Column Deliverable Workspace */}
+      {/* Main Content Layout: FactMesh Audit View OR AudienceLens View OR Dual-Column Deliverable Workspace */}
       {isFactMeshAuditOpen ? (
         <FactMeshAuditView
           deliverable={activeDeliverable}
           draft={draft}
           onUpdateDeliverableAudit={handleUpdateDeliverableAudit}
           onExit={() => setIsFactMeshAuditOpen(false)}
+        />
+      ) : isAudienceLensOpen ? (
+        <AudienceLensView
+          deliverable={activeDeliverable}
+          draft={draft}
+          config={config}
+          onUpdateDeliverableReport={handleUpdateDeliverableAudienceLens}
+          onApplyAdaptation={handleApplyAudienceAdaptation}
+          onExit={() => setIsAudienceLensOpen(false)}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -506,6 +596,7 @@ export function ResultsWorkspace({
                 modelUsed={session?.modelUsed || "gemini-3.7-flash"}
                 projectName={draft.name}
                 onOpenFactMeshAudit={() => setIsFactMeshAuditOpen(true)}
+                onOpenAudienceLens={() => setIsAudienceLensOpen(true)}
               />
 
               {/* Main Area: Preview or Local Editor */}
@@ -513,6 +604,7 @@ export function ResultsWorkspace({
                 {isEditing ? (
                   <DeliverableEditor
                     deliverable={activeDeliverable}
+                    allDeliverables={deliverables}
                     sourceText={draft.sourceText}
                     language={config.language}
                     onSave={handleSaveEdit}
@@ -541,6 +633,7 @@ export function ResultsWorkspace({
                   isEditing={isEditing}
                   onToggleEdit={() => setIsEditing(!isEditing)}
                   onOpenFactMeshAudit={() => setIsFactMeshAuditOpen(true)}
+                  onOpenAudienceLens={() => setIsAudienceLensOpen(true)}
                   onOpenRegenerate={() => {
                     setSingleRegenError(null);
                     setIsRegenerateDialogOpen(true);

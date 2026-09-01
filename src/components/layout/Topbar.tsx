@@ -1,5 +1,6 @@
 import React from "react";
 import { Menu, HelpCircle } from "lucide-react";
+import { SystemHealthIndicator } from "./SystemHealthIndicator";
 
 export interface TopbarProps {
   onOpenMobile: () => void;
@@ -50,21 +51,8 @@ export function Topbar({ onOpenMobile, title, breadcrumbs, onNavigate }: TopbarP
 
       {/* Right side: Status, Help & Profile */}
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* System Status */}
-        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-medium text-slate-600">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Local Engine Active</span>
-        </div>
-
-        {/* Documentation / Info */}
-        <button
-          type="button"
-          className="p-2 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
-          title="SIH 26154 Documentation"
-          aria-label="Help and Documentation"
-        >
-          <HelpCircle className="w-4 h-4" />
-        </button>
+        {/* Interactive System Health Diagnostic */}
+        <SystemHealthIndicator />
 
         {/* Profile Avatar */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-200">

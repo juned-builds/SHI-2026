@@ -14,6 +14,7 @@ import {
 import { GeneratedDeliverable, DeliverableDisplayMode } from "../../types";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { VideoPackageViewer } from "./video/VideoPackageViewer";
+import { PresentationDeckViewer } from "./presentation/PresentationDeckViewer";
 
 export interface DeliverablePreviewProps {
   deliverable: GeneratedDeliverable;
@@ -28,10 +29,12 @@ export function DeliverablePreview({
   onChangeDisplayMode,
   projectName,
 }: DeliverablePreviewProps) {
+  const isPresentation = deliverable.deliverableId === "presentation";
   const hasStructuredData =
-    deliverable.structuredData &&
-    typeof deliverable.structuredData === "object" &&
-    Object.keys(deliverable.structuredData).length > 0;
+    (deliverable.structuredData &&
+      typeof deliverable.structuredData === "object" &&
+      Object.keys(deliverable.structuredData).length > 0) ||
+    isPresentation;
 
   if (deliverable.status === "failed") {
     return (
@@ -62,7 +65,7 @@ export function DeliverablePreview({
             }`}
           >
             <FileText className="w-3.5 h-3.5" />
-            Formatted Preview
+            {isPresentation ? "Interactive Slide Deck" : "Formatted Preview"}
           </button>
 
           {hasStructuredData && (
@@ -97,24 +100,35 @@ export function DeliverablePreview({
         </div>
 
         <span className="text-[11px] text-slate-400 hidden sm:inline">
-          {displayMode === "preview" && "Markdown rendering"}
+          {displayMode === "preview" && (isPresentation ? "16:9 Widescreen Presentation" : "Markdown rendering")}
           {displayMode === "structured" && "Structured data view"}
           {displayMode === "raw_json" && "Pydantic contract schema"}
         </span>
       </div>
 
-      {/* Mode 1: Formatted Markdown / Rich Document Preview */}
+      {/* Mode 1: Formatted / Visual Preview */}
       {displayMode === "preview" && (
-        <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs">
-          <MarkdownRenderer content={deliverable.content} />
-        </div>
+        isPresentation ? (
+          <PresentationDeckViewer
+            data={deliverable.structuredData}
+            markdownContent={deliverable.content}
+            deliverableTitle={deliverable.title}
+            projectName={projectName}
+          />
+        ) : (
+          <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs">
+            <MarkdownRenderer content={deliverable.content} />
+          </div>
+        )
       )}
 
       {/* Mode 2: Structured Component Data View */}
       {displayMode === "structured" && hasStructuredData && (
         <StructuredDataVisualizer
           deliverableId={deliverable.deliverableId}
-          data={deliverable.structuredData!}
+          data={deliverable.structuredData || {}}
+          markdownContent={deliverable.content}
+          deliverableTitle={deliverable.title}
           projectName={projectName}
         />
       )}
@@ -126,7 +140,7 @@ export function DeliverablePreview({
             <span>Payload Output: {deliverable.deliverableId}</span>
             <span>JSON Validated</span>
           </div>
-          <pre className="whitespace-pre">{JSON.stringify(deliverable.structuredData, null, 2)}</pre>
+          <pre className="whitespace-pre">{JSON.stringify(deliverable.structuredData || { markdown: deliverable.content }, null, 2)}</pre>
         </div>
       )}
     </div>
@@ -139,15 +153,26 @@ export function DeliverablePreview({
 function StructuredDataVisualizer({
   deliverableId,
   data,
+  markdownContent,
+  deliverableTitle,
   projectName,
 }: {
   deliverableId: string;
   data: Record<string, any>;
+  markdownContent?: string;
+  deliverableTitle?: string;
   projectName?: string;
 }) {
   switch (deliverableId) {
     case "presentation":
-      return <PresentationDeckViewer data={data} />;
+      return (
+        <PresentationDeckViewer
+          data={data}
+          markdownContent={markdownContent}
+          deliverableTitle={deliverableTitle}
+          projectName={projectName}
+        />
+      );
     case "video_package":
       return <VideoPackageViewer data={data} projectName={projectName} />;
     case "infographic":
@@ -159,75 +184,6 @@ function StructuredDataVisualizer({
     default:
       return <GenericStructuredViewer data={data} />;
   }
-}
-
-function PresentationDeckViewer({ data }: { data: Record<string, any> }) {
-  const slides = Array.isArray(data.slides) ? data.slides : [];
-
-  return (
-    <div className="space-y-4">
-      {data.title && (
-        <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-lg">
-          <span className="text-[11px] font-semibold text-blue-800 uppercase tracking-wide">
-            Presentation Title
-          </span>
-          <h4 className="text-sm font-bold text-blue-950 mt-0.5">{data.title}</h4>
-          {data.total_slides && (
-            <span className="text-xs text-blue-700 mt-1 inline-block">
-              {data.total_slides} Total Slides Planned
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-        {slides.map((slide: any, idx: number) => (
-          <div
-            key={idx}
-            className="p-4 bg-white border border-slate-200 rounded-xl shadow-2xs flex flex-col justify-between"
-          >
-            <div>
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
-                <span className="text-[11px] font-bold text-blue-600 uppercase">
-                  Slide {slide.slide_number || idx + 1}
-                </span>
-                <Presentation className="w-3.5 h-3.5 text-slate-400" />
-              </div>
-
-              <h5 className="font-semibold text-slate-900 text-xs mb-2">
-                {slide.slide_title || "Untitled Slide"}
-              </h5>
-
-              {Array.isArray(slide.bullet_points) && slide.bullet_points.length > 0 && (
-                <ul className="space-y-1 mb-3 text-xs text-slate-600 list-disc list-inside">
-                  {slide.bullet_points.map((pt: string, pidx: number) => (
-                    <li key={pidx} className="leading-snug">
-                      {pt}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-slate-100 text-[11px]">
-              {slide.visual_concept && (
-                <div className="p-2 bg-slate-50 rounded text-slate-600">
-                  <strong className="text-slate-800 font-medium">Visual: </strong>
-                  {slide.visual_concept}
-                </div>
-              )}
-              {slide.speaker_notes && (
-                <div className="p-2 bg-amber-50/60 rounded text-amber-900">
-                  <strong className="text-amber-950 font-medium">Speaker Notes: </strong>
-                  {slide.speaker_notes}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function InfographicViewer({ data }: { data: Record<string, any> }) {

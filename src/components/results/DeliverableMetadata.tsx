@@ -9,6 +9,7 @@ import {
   Layers,
   Sparkles,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import { GeneratedDeliverable } from "../../types";
 import { DELIVERABLES_CATALOG } from "../../constants/transformationOptions";
@@ -18,6 +19,7 @@ export interface DeliverableMetadataProps {
   modelUsed?: string;
   projectName?: string;
   onOpenFactMeshAudit?: () => void;
+  onOpenAudienceLens?: () => void;
 }
 
 export function DeliverableMetadata({
@@ -25,6 +27,7 @@ export function DeliverableMetadata({
   modelUsed = "gemini-3.7-flash",
   projectName,
   onOpenFactMeshAudit,
+  onOpenAudienceLens,
 }: DeliverableMetadataProps) {
   const meta = DELIVERABLES_CATALOG.find((m) => m.id === deliverable.deliverableId);
   const wordCount = deliverable.content.trim()
@@ -32,6 +35,7 @@ export function DeliverableMetadata({
     : 0;
   const charCount = deliverable.content.length;
   const audit = deliverable.factMeshAudit;
+  const audienceReport = deliverable.audienceLensReport;
 
   return (
     <div className="flex flex-wrap items-center gap-2 py-2 px-3 bg-slate-50 border-b border-slate-200 text-xs text-slate-600">
@@ -91,6 +95,40 @@ export function DeliverableMetadata({
         >
           <ShieldCheck className="w-3 h-3 text-indigo-600" />
           Verify with FactMesh™
+        </button>
+      ) : null}
+
+      {/* AudienceLens™ Communication Intelligence Status or Trigger */}
+      {audienceReport ? (
+        deliverable.audienceLensStale ? (
+          <button
+            type="button"
+            onClick={onOpenAudienceLens}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-amber-400 bg-amber-50 text-amber-900 text-[11px] font-semibold cursor-pointer transition-all hover:bg-amber-100"
+            title="Content changed after audience evaluation. Click to re-evaluate AudienceLens™."
+          >
+            <AlertTriangle className="w-3 h-3 text-amber-600" />
+            AudienceLens: Re-evaluate
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onOpenAudienceLens}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 text-[11px] font-semibold cursor-pointer transition-all"
+            title="AudienceLens™ Communication Intelligence evaluated"
+          >
+            <Users className="w-3 h-3 text-purple-600" />
+            AudienceLens™ ({audienceReport.readability.readingScore}/10)
+          </button>
+        )
+      ) : onOpenAudienceLens ? (
+        <button
+          type="button"
+          onClick={onOpenAudienceLens}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50/70 border border-purple-200 text-purple-700 hover:bg-purple-100 text-[11px] font-medium cursor-pointer transition-all"
+        >
+          <Users className="w-3 h-3 text-purple-600" />
+          AudienceLens™
         </button>
       ) : null}
 

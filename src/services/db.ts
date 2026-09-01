@@ -415,6 +415,33 @@ export async function getGeneration(generationId: string): Promise<GenerationRec
 const inFlightSaveLocks = new Map<string, Promise<{ project: ProjectRecord; generation: GenerationRecord }>>();
 
 /**
+ * Saves a generation record directly to IndexedDB and memory store.
+ */
+export async function saveGeneration(generation: GenerationRecord): Promise<GenerationRecord> {
+  memoryStore.generations.set(generation.id, generation);
+  const db = await getDatabase();
+  if (!db || !isIndexedDbAvailable) {
+    return generation;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORES.GENERATIONS, "readwrite");
+      const store = tx.objectStore(STORES.GENERATIONS);
+      const request = store.put(generation);
+      request.onsuccess = () => resolve(generation);
+      request.onerror = (e) => {
+        console.error("[LocalDB] Failed to save generation to IndexedDB:", e);
+        resolve(generation);
+      };
+    } catch (err) {
+      console.error("[LocalDB] saveGeneration error:", err);
+      resolve(generation);
+    }
+  });
+}
+
+/**
  * Persists a completed generation and automatically updates or creates its associated Project record.
  * Fully atomic, idempotent, and duplicate-safe.
  */

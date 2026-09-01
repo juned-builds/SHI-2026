@@ -5,6 +5,10 @@ import { createServer as createViteServer } from "vite";
 import { executeTransformation } from "./server/generationService";
 import { executeFactMeshAudit } from "./server/factMeshService";
 import { executeRefineSelection } from "./server/refinementService";
+import {
+  executeSimulatePersonas,
+  executeAdaptForPersona,
+} from "./server/audienceLensService";
 import { testGeminiAvailability, STABLE_GEMINI_MODELS } from "./server/geminiService";
 import { classifyError } from "./server/errorHandling";
 
@@ -209,6 +213,130 @@ async function startServer() {
       }
 
       const result = await executeRefineSelection(payload);
+
+      if (!result.success && result.error) {
+        const errorObj = typeof result.error === "string"
+          ? { code: "UNKNOWN_ERROR", message: result.error, retryable: false }
+          : result.error;
+
+        const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
+          : errorObj.code === "VALIDATION_ERROR" ? 400
+          : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "TIMEOUT_ERROR" ? 504
+          : errorObj.retryable ? 503 : 500;
+
+        return res.status(httpStatus).json(result);
+      }
+
+      return res.status(200).json(result);
+    } catch (err: any) {
+      const classified = classifyError(err, 1);
+      return res.status(classified.httpStatus).json({
+        success: false,
+        error: {
+          code: classified.code,
+          message: classified.message,
+          retryable: classified.retryable,
+          provider: classified.provider || "gemini",
+        },
+        detail: classified.message,
+      });
+    }
+  });
+
+  // AudienceLens™ Multi-Persona Communication Intelligence endpoint (Module 1.2)
+  app.post("/api/v1/generation/simulate-personas", async (req: Request, res: Response) => {
+    try {
+      const payload = req.body;
+      if (!payload || typeof payload !== "object") {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid request payload for simulate-personas.",
+            retryable: false,
+          },
+          detail: "Invalid request payload for simulate-personas.",
+        });
+      }
+
+      if (!payload.generatedDeliverableText || !payload.generatedDeliverableText.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "generatedDeliverableText cannot be empty.",
+            retryable: false,
+          },
+          detail: "generatedDeliverableText cannot be empty.",
+        });
+      }
+
+      const result = await executeSimulatePersonas(payload);
+
+      if (!result.success && result.error) {
+        const errorObj = typeof result.error === "string"
+          ? { code: "UNKNOWN_ERROR", message: result.error, retryable: false }
+          : result.error;
+
+        const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
+          : errorObj.code === "VALIDATION_ERROR" ? 400
+          : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "TIMEOUT_ERROR" ? 504
+          : errorObj.retryable ? 503 : 500;
+
+        return res.status(httpStatus).json(result);
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: result.data || result.report,
+        ...result,
+      });
+    } catch (err: any) {
+      const classified = classifyError(err, 1);
+      return res.status(classified.httpStatus).json({
+        success: false,
+        error: {
+          code: classified.code,
+          message: classified.message,
+          retryable: classified.retryable,
+          provider: classified.provider || "gemini",
+        },
+        detail: classified.message,
+      });
+    }
+  });
+
+  // AudienceLens™ Adapt for Persona endpoint (Module 1.2)
+  app.post("/api/v1/generation/adapt-for-persona", async (req: Request, res: Response) => {
+    try {
+      const payload = req.body;
+      if (!payload || typeof payload !== "object") {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "Invalid request payload for adapt-for-persona.",
+            retryable: false,
+          },
+          detail: "Invalid request payload for adapt-for-persona.",
+        });
+      }
+
+      if (!payload.deliverableContent || !payload.deliverableContent.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: "VALIDATION_ERROR",
+            message: "deliverableContent cannot be empty.",
+            retryable: false,
+          },
+          detail: "deliverableContent cannot be empty.",
+        });
+      }
+
+      const result = await executeAdaptForPersona(payload);
 
       if (!result.success && result.error) {
         const errorObj = typeof result.error === "string"

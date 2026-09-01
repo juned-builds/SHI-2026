@@ -16,6 +16,7 @@ import {
   Edit2,
   AlertCircle,
   X,
+  PlayCircle,
 } from "lucide-react";
 import { PageContainer } from "../layout/PageContainer";
 import { PageHeader } from "../layout/PageHeader";
@@ -29,8 +30,14 @@ import {
   deleteProject,
   getGeneration,
   renameProject as dbRenameProject,
+  saveProject,
+  saveGeneration,
 } from "../../services/db";
 import { ProjectHistoryModal } from "./ProjectHistoryModal";
+import {
+  DEMO_PROJECT_RECORD,
+  DEMO_GENERATION_RECORD,
+} from "../../constants/demoDataset";
 
 export interface ProjectsViewProps {
   onNavigate: (route: string) => void;
@@ -73,6 +80,21 @@ export function ProjectsView({
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  const handleLoadDemoDataset = async () => {
+    try {
+      await saveProject(DEMO_PROJECT_RECORD);
+      await saveGeneration(DEMO_GENERATION_RECORD);
+      await fetchProjects();
+      setNotification("Showcase demo project (NIDCI 2026) loaded successfully.");
+      setTimeout(() => setNotification(null), 4000);
+      if (onOpenProject) {
+        onOpenProject(DEMO_PROJECT_RECORD, DEMO_GENERATION_RECORD);
+      }
+    } catch (err) {
+      console.error("Failed to load demo dataset:", err);
+    }
+  };
 
   const handleOpenLatest = async (project: ProjectRecord) => {
     if (!project.latestGenerationId) {
@@ -196,13 +218,24 @@ export function ProjectsView({
         description="Organize your content transformation workspaces, generation history, and deliverables."
         badge={`${projects.length} Saved`}
         action={
-          <Button
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => onNavigate("projects/new")}
-          >
-            Create New Project
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              icon={<PlayCircle className="w-4 h-4 text-indigo-600" />}
+              onClick={handleLoadDemoDataset}
+              className="text-xs border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100 text-indigo-900"
+              title="Load full pre-computed NIDCI demo dataset (Zero Quota)"
+            >
+              Load Showcase Demo
+            </Button>
+            <Button
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => onNavigate("projects/new")}
+            >
+              Create New Project
+            </Button>
+          </div>
         }
       />
 
@@ -294,6 +327,15 @@ export function ProjectsView({
                     label: "Create First Project",
                     icon: <Plus className="w-4 h-4" />,
                     onClick: () => onNavigate("projects/new"),
+                  }
+                : undefined
+            }
+            secondaryAction={
+              !searchQuery
+                ? {
+                    label: "Load Showcase Demo (Zero Quota)",
+                    icon: <PlayCircle className="w-4 h-4" />,
+                    onClick: handleLoadDemoDataset,
                   }
                 : undefined
             }
