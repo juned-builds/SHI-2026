@@ -1,6 +1,6 @@
 /**
- * Local-First IndexedDB Persistence Layer for SIH 26154:
- * "Gen AI Platform for Automated Content Transformation".
+ * Local-First IndexedDB Persistence Layer for TransformAI:
+ * Automated Content Transformation & Grounded Synthesis Platform.
  *
  * Stores Projects, Generations, and Deliverable Edits completely in-browser
  * without external database dependencies or cloud telemetry.

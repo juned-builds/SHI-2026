@@ -45,6 +45,7 @@ import { DELIVERABLES_CATALOG } from "../../constants/transformationOptions";
 import { generatePowerPointPresentation } from "../../services/presentation/pptxRenderer";
 import { normalizePresentationData } from "../../services/presentation/presentationParser";
 import { downloadTextFile } from "../../utils/exportHelpers";
+import { getCleanSocialCopyText } from "../../utils/socialTextRenderer";
 import { MarkdownRenderer } from "../results/MarkdownRenderer";
 import { LinkedInPostPreview } from "../results/linkedin/LinkedInPostPreview";
 import { PresentationDeckViewer } from "../results/presentation/PresentationDeckViewer";
@@ -295,7 +296,11 @@ export function LibraryView({
 
   const handleCopyContent = async (item: FlatDeliverableItem) => {
     try {
-      await navigator.clipboard.writeText(item.content);
+      const textToCopy =
+        item.category === "social"
+          ? getCleanSocialCopyText(item.content)
+          : item.content;
+      await navigator.clipboard.writeText(textToCopy);
       setCopiedId(item.id);
       setTimeout(() => setCopiedId(null), 2000);
     } catch {

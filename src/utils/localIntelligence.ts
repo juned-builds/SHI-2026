@@ -1,6 +1,6 @@
 /**
- * Local Intelligence Engine for TransformAI (SIH 26154)
- * "AI GENERATES. LOCAL INTELLIGENCE ANALYZES, VALIDATES, STORES, COMPARES AND PRESENTS."
+ * Local Intelligence Engine for TransformAI.
+ * Client-Side Deterministic Analysis Engine.
  *
  * Deterministic, fast, side-effect free, testable, and completely independent of Gemini.
  * Tolerant of empty content, multilingual/Unicode/Hindi text, and structured markdown.
@@ -240,7 +240,7 @@ export function extractNamedEntities(text: string): ExtractedFactToken[] {
   if (!text || typeof text !== "string") return [];
 
   const results: ExtractedFactToken[] = [];
-  // Acronyms (e.g., PM-KISAN, AIIMS, NASA, ISRO, SIH, MoHUA)
+  // Acronyms (e.g., PM-KISAN, AIIMS, NASA, ISRO, MoHUA)
   const acronymRegex = /\b[A-Z][A-Z0-9_-]{1,10}[A-Z0-9]\b/g;
 
   // Title Cased multi-word schemes/names (e.g. "Digital India Mission", "Pradhan Mantri Awas Yojana")

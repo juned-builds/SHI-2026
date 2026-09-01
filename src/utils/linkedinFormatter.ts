@@ -1,6 +1,7 @@
 /**
  * Deterministic Client-Side LinkedIn Post Formatter and Style Engine for TransformAI.
  * Formats, restructures, and enhances LinkedIn deliverables without calling external APIs.
+ * Preserves all underlying factual content (numbers, dates, names, organizations, statistics, claims).
  */
 
 export type LinkedInStyle =
@@ -26,8 +27,56 @@ export interface LinkedInFormatOptions {
   emojiDensity?: LinkedInEmojiDensity;
 }
 
+// Unicode Emoji regex matching pictographs, flags, keycaps, skin tones, zero-width joiners, and dingbats
+const EMOJI_REGEX =
+  /(?:[\p{Extended_Pictographic}\uFE0F\u200D]|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|[\u{2600}-\u{27BF}])/gu;
+
+/**
+ * Safely strips all emojis from a string while preserving characters, punctuation, and markdown.
+ */
+export function stripEmojis(str: string): string {
+  if (!str) return "";
+  return str.replace(EMOJI_REGEX, "").trim();
+}
+
+/**
+ * Strips leading bullet markers, numbering, or emojis without consuming markdown bold (e.g. `**`).
+ */
+export function stripLeadingBulletPrefix(str: string): string {
+  if (!str) return "";
+  const prefixRegex =
+    /^((?:[•\-]|\*(?!\*)|(?:[\p{Extended_Pictographic}\uFE0F\u200D]|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|[\u{2600}-\u{27BF}])+|\d+[\.\)])\s*)/u;
+  return str.replace(prefixRegex, "").trim();
+}
+
+/**
+ * Cleans section header wrappers (e.g. `**Key Takeaways:**`, `**EXECUTIVE BRIEFING**`, etc.).
+ */
+export function cleanHeaderPrefix(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(
+      /^((\*\*|##|###)?\s*(PUBLIC POLICY & GOVERNANCE BRIEFING|PUBLIC POLICY & GOVERNANCE|EXECUTIVE BRIEFING|BOTTOM LINE UP FRONT \(BLUF\)|BOTTOM LINE UP FRONT|WHAT THIS SIGNALS|THE BIGGER PICTURE|WHAT LEADERS SHOULD WATCH|HERE'S WHAT HAPPENED|THEN CAME THE CRITICAL SHIFT|THEN CAME THE OPERATIONAL SHIFT|AND THIS IS WHERE IT BECOMES TRULY IMPORTANT|AND THIS IS WHERE IT BECOMES IMPORTANT|KEY TAKEAWAYS|WHY IT MATTERS|PUBLIC & POLICY IMPLICATIONS|STRATEGIC IMPLICATION & RISK OUTLOOK|EXECUTIVE SUMMARY|KEY DEVELOPMENTS & PROVISIONS|KEY DEVELOPMENTS|WHAT THIS MEANS FOR STAKEHOLDERS|DECISION-MAKER ACTION ITEMS|CORE INSIGHTS|STRATEGIC IMPACT|STRATEGIC TAKEAWAY|CITIZEN & SECTOR IMPACT|NEXT STEPS & IMPLEMENTATION)[:\s]*(\*\*|##)?\s*)/iu,
+      ""
+    )
+    .trim();
+}
+
+/**
+ * Checks if a bullet point is a generated static action item / boilerplate.
+ */
+function isBoilerplateBullet(str: string): boolean {
+  return (
+    /monitor\s+implementation\s+milestones/i.test(str) ||
+    /evaluate\s+resource\s+allocation/i.test(str) ||
+    /assess\s+resource\s+allocation/i.test(str) ||
+    /what\s+leaders\s+should\s+watch/i.test(str)
+  );
+}
+
 /**
  * Parses raw text/markdown into structured LinkedIn sections.
+ * Robust against repeated re-formatting and extracts the canonical facts.
  */
 export function parseLinkedInPost(rawText: string): LinkedInParsedSections {
   if (!rawText || !rawText.trim()) {
@@ -43,7 +92,7 @@ export function parseLinkedInPost(rawText: string): LinkedInParsedSections {
 
   const lines = rawText.split("\n").map((l) => l.trim());
   const hashtags: string[] = [];
-  const nonHashtagLines: string[] = [];
+  const contentLines: string[] = [];
 
   for (const line of lines) {
     if (line.startsWith("#") && !line.startsWith("##") && !line.startsWith("###")) {
@@ -53,61 +102,144 @@ export function parseLinkedInPost(rawText: string): LinkedInParsedSections {
         continue;
       }
     }
-    nonHashtagLines.push(line);
+    contentLines.push(line);
   }
 
-  const cleanedText = nonHashtagLines.join("\n").trim();
-  const paragraphs = cleanedText.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const rawParagraphs = contentLines
+    .join("\n")
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
 
-  let hook = paragraphs[0] || "";
-  let context = paragraphs.length > 1 ? paragraphs[1] : "";
+  if (rawParagraphs.length === 0) {
+    return {
+      hook: "",
+      context: "",
+      takeaways: [],
+      whyItMatters: "",
+      closingCta: "",
+      hashtags,
+    };
+  }
+
+  const bulletRegex =
+    /^((?:[•\-]|\*(?!\*)|(?:[\p{Extended_Pictographic}\uFE0F\u200D]|[\u{1F1E6}-\u{1F1FF}]|[\u{1F3FB}-\u{1F3FF}]|[\u{2600}-\u{27BF}])+|\d+[\.\)])\s+)(.*)$/u;
+  const isHeaderRegex =
+    /^((\*\*|##|###)?\s*(PUBLIC POLICY & GOVERNANCE|EXECUTIVE BRIEFING|BOTTOM LINE UP FRONT|WHAT THIS SIGNALS|THE BIGGER PICTURE|WHAT LEADERS SHOULD WATCH|HERE'S WHAT HAPPENED|THEN CAME|AND THIS IS WHERE|KEY TAKEAWAYS|WHY IT MATTERS|PUBLIC & POLICY|STRATEGIC IMPLICATION|EXECUTIVE SUMMARY|KEY DEVELOPMENTS|WHAT THIS MEANS|DECISION-MAKER|CORE INSIGHTS|STRATEGIC IMPACT|STRATEGIC TAKEAWAY|CITIZEN & SECTOR|NEXT STEPS)[\w\s/&():\-]*(\*\*|##)?\s*)$/i;
+
+  let hook = "";
+  let context = "";
   const takeaways: string[] = [];
   let whyItMatters = "";
   let closingCta = "";
 
-  // Extract bullets from text if present
-  for (const p of paragraphs) {
-    const pLines = p.split("\n");
+  // 1. Find the primary hook/headline
+  let startIndex = 0;
+  for (let i = 0; i < rawParagraphs.length; i++) {
+    const p = rawParagraphs[i];
+    if (isHeaderRegex.test(p)) continue;
+    const cleaned = cleanHeaderPrefix(p);
+    if (!cleaned) continue;
+    hook = stripLeadingBulletPrefix(cleaned);
+    startIndex = i + 1;
+    break;
+  }
+
+  // 2. Process remaining paragraphs
+  for (let i = startIndex; i < rawParagraphs.length; i++) {
+    const p = rawParagraphs[i];
+    const pLines = p.split("\n").map((l) => l.trim()).filter(Boolean);
+
+    let containsBullets = false;
     for (const pl of pLines) {
-      if (
-        pl.startsWith("•") ||
-        pl.startsWith("-") ||
-        pl.startsWith("*") ||
-        pl.startsWith("🔹") ||
-        pl.startsWith("✅") ||
-        pl.startsWith("📌") ||
-        pl.startsWith("1.") ||
-        pl.startsWith("2.") ||
-        pl.startsWith("3.") ||
-        pl.startsWith("4.")
-      ) {
-        const cleanBullet = pl.replace(/^([•\-\*🔹✅📌\d\.]+\s*)/, "").trim();
-        if (cleanBullet && !takeaways.includes(cleanBullet)) {
+      const bMatch = pl.match(bulletRegex);
+      if (bMatch) {
+        containsBullets = true;
+        const cleanBullet = bMatch[2].trim();
+        if (
+          cleanBullet &&
+          !isBoilerplateBullet(cleanBullet) &&
+          !takeaways.includes(cleanBullet)
+        ) {
           takeaways.push(cleanBullet);
         }
       }
     }
-  }
 
-  // Look for "Why this matters" or closing
-  for (let i = 2; i < paragraphs.length; i++) {
-    const p = paragraphs[i];
-    if (p.toLowerCase().includes("why this matters") || p.toLowerCase().includes("impact:")) {
-      whyItMatters = p.replace(/^(why this matters[:\s]*|impact[:\s]*)/i, "").trim();
-    } else if (p.toLowerCase().includes("what do you think") || p.toLowerCase().includes("register") || p.toLowerCase().includes("contact") || p.toLowerCase().includes("call")) {
-      closingCta = p;
-    } else if (!takeaways.some((t) => p.includes(t)) && p !== hook && p !== context) {
-      if (!whyItMatters) {
-        whyItMatters = p;
+    if (!containsBullets) {
+      if (isHeaderRegex.test(p)) {
+        continue;
+      }
+      const cleaned = cleanHeaderPrefix(p);
+      if (!cleaned) continue;
+
+      const pLower = cleaned.toLowerCase();
+
+      // Skip generated boilerplate text during cyclic parsing
+      if (
+        pLower.includes("the bigger picture") ||
+        pLower.includes("structural, not just incremental") ||
+        pLower.includes("story of how strategy meets") ||
+        pLower.includes("every successful transformation begins") ||
+        pLower.includes("public administrators, industry partners") ||
+        pLower.includes("consistent execution, stakeholder alignment") ||
+        pLower.includes("behind every major milestone is a story")
+      ) {
+        continue;
+      }
+
+      if (
+        pLower.startsWith("why this matters") ||
+        pLower.startsWith("why it matters") ||
+        pLower.startsWith("strategic impact") ||
+        pLower.startsWith("public & policy") ||
+        pLower.includes("sets a precedent") ||
+        pLower.includes("implication") ||
+        pLower.startsWith("strategic takeaway")
+      ) {
+        let cleanText = cleaned
+          .replace(
+            /^(why this matters[:\s]*|why it matters[:\s]*|strategic impact[:\s]*|strategic takeaway[:\s]*|impact[:\s]*)/i,
+            ""
+          )
+          .trim();
+        cleanText = cleanText
+          .replace(
+            /\s*This framework reinforces institutional accountability.*$/i,
+            ""
+          )
+          .trim();
+        if (!whyItMatters) whyItMatters = cleanText;
+      } else if (
+        pLower.startsWith("what are your") ||
+        pLower.startsWith("what do you think") ||
+        pLower.startsWith("let's discuss") ||
+        pLower.startsWith("how is your") ||
+        pLower.startsWith("what is your executive") ||
+        pLower.startsWith("what part of this") ||
+        pLower.startsWith("share this") ||
+        pLower.includes("?")
+      ) {
+        closingCta = cleaned;
+      } else if (!context) {
+        let cleanCtx = cleaned
+          .replace(
+            /\s*This reflects a broader shift toward automated verification.*$/i,
+            ""
+          )
+          .trim();
+        context = cleanCtx;
+      } else if (!whyItMatters) {
+        whyItMatters = cleaned;
       } else if (!closingCta) {
-        closingCta = p;
+        closingCta = cleaned;
       }
     }
   }
 
   // Fallback defaults if extraction missed items
-  if (takeaways.length === 0 && paragraphs.length > 2) {
-    takeaways.push(paragraphs[2]);
+  if (takeaways.length === 0 && rawParagraphs.length > 2) {
+    takeaways.push(rawParagraphs[2]);
   }
 
   return {
@@ -122,6 +254,12 @@ export function parseLinkedInPost(rawText: string): LinkedInParsedSections {
 
 /**
  * Formats a LinkedIn post according to selected style and emoji density.
+ * Executes genuinely distinct structural transformations for each voice:
+ * - Professional: Polished, conventional hierarchy with key takeaways and practical next steps.
+ * - Thought Leader: Insight-driven macro perspective connecting developments to broader trends.
+ * - Storytelling: Narrative arc progressing through context, operational shift, and human impact.
+ * - Gov / Public: Accessible public-sector briefing emphasizing civic governance and policy impact.
+ * - Executive: High-density decision briefing with BLUF, strategic impact, and action items.
  */
 export function formatLinkedInPost(
   rawText: string,
@@ -130,135 +268,311 @@ export function formatLinkedInPost(
   const { style = "professional", emojiDensity = "balanced" } = options;
   const parsed = parseLinkedInPost(rawText);
 
-  // Bullet marker based on emoji density
-  const getBulletMarker = (index: number): string => {
+  // Bullet marker generator based on emoji density and voice
+  const getBulletMarker = (index: number, styleType: LinkedInStyle): string => {
     if (emojiDensity === "none") return "•";
     if (emojiDensity === "expressive") {
-      const markers = ["🚀", "💡", "⚡", "📊", "✅", "🌱", "🎯"];
-      return markers[index % markers.length];
+      const expressiveIcons = ["🚀", "💡", "⚡", "📊", "✅", "🎯", "📈"];
+      return expressiveIcons[index % expressiveIcons.length];
     }
     // Balanced
-    const markers = ["🔹", "📌", "📊", "⚡", "💡", "🤝"];
-    return markers[index % markers.length];
+    const balancedIcons =
+      styleType === "executive"
+        ? ["▪️", "🔹", "📊", "📌"]
+        : styleType === "government"
+        ? ["🏛️", "📌", "🔹", "📊"]
+        : styleType === "thought_leadership"
+        ? ["💡", "🔍", "📈", "⚡"]
+        : ["🔹", "📌", "📊", "⚡", "💡"];
+    return balancedIcons[index % balancedIcons.length];
   };
 
+  // Section header emoji generator
+  const getSectionHeaderEmoji = (type: string): string => {
+    if (emojiDensity === "none") return "";
+    if (emojiDensity === "expressive") {
+      switch (type) {
+        case "executive":
+          return "🎯 ";
+        case "signals":
+          return "📡 ";
+        case "picture":
+          return "🌐 ";
+        case "watch":
+          return "👀 ";
+        case "story":
+          return "📖 ";
+        case "shift":
+          return "⚡ ";
+        case "gov":
+          return "🏛️ ";
+        case "takeaway":
+          return "📌 ";
+        case "impact":
+          return "💥 ";
+        default:
+          return "✨ ";
+      }
+    }
+    // Balanced
+    switch (type) {
+      case "executive":
+        return "📊 ";
+      case "signals":
+        return "🔍 ";
+      case "picture":
+        return "🌐 ";
+      case "watch":
+        return "📌 ";
+      case "story":
+        return "📖 ";
+      case "shift":
+        return "⚡ ";
+      case "gov":
+        return "🏛️ ";
+      case "takeaway":
+        return "🔹 ";
+      case "impact":
+        return "💡 ";
+      default:
+        return "";
+    }
+  };
+
+  // Hook prefix based on style & emoji density
   const getHookPrefix = (): string => {
     if (emojiDensity === "none") return "";
+    if (emojiDensity === "expressive") {
+      switch (style) {
+        case "executive":
+          return "🎯 ";
+        case "thought_leadership":
+          return "💡 ";
+        case "storytelling":
+          return "🌱 ";
+        case "government":
+          return "🏛️ ";
+        case "professional":
+        default:
+          return "📢 ";
+      }
+    }
+    // Balanced
     switch (style) {
-      case "government":
-        return emojiDensity === "expressive" ? "🇮🇳 " : "🏛️ ";
-      case "thought_leadership":
-        return emojiDensity === "expressive" ? "💡 " : "🔍 ";
-      case "storytelling":
-        return emojiDensity === "expressive" ? "🌱 " : "📖 ";
       case "executive":
-        return emojiDensity === "expressive" ? "📈 " : "🎯 ";
+        return "📊 ";
+      case "thought_leadership":
+        return "🔍 ";
+      case "storytelling":
+        return "📖 ";
+      case "government":
+        return "🏛️ ";
       case "professional":
       default:
-        return emojiDensity === "expressive" ? "📢 " : "🚀 ";
+        return "🚀 ";
     }
   };
 
-  // Strip existing emojis from hook if density is none
-  let cleanHook = parsed.hook;
-  if (emojiDensity === "none") {
-    cleanHook = cleanHook.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
-  }
+  // Clean factual elements
+  const cleanHook = stripEmojis(parsed.hook);
+  const cleanContext = stripEmojis(parsed.context);
+  const cleanWhy = stripEmojis(parsed.whyItMatters);
+  const cleanTakeaways = parsed.takeaways.map((t) =>
+    stripLeadingBulletPrefix(stripEmojis(t))
+  );
 
-  const parts: string[] = [];
+  const sections: string[] = [];
 
-  // 1. Hook
-  if (cleanHook) {
-    const formattedHook = cleanHook.startsWith(getHookPrefix())
-      ? cleanHook
-      : `${getHookPrefix()}${cleanHook.replace(/^[•\-\*📢🚀💡🏛️🔍📖🎯🌱\s]+/, "")}`;
-    parts.push(formattedHook.trim());
-  }
+  switch (style) {
+    // ==========================================
+    // STYLE 5: EXECUTIVE (BLUF, High-Density Briefing)
+    // ==========================================
+    case "executive": {
+      sections.push(`${getSectionHeaderEmoji("executive")}**EXECUTIVE BRIEFING**`);
 
-  // 2. Context
-  if (parsed.context) {
-    let cleanContext = parsed.context;
-    if (emojiDensity === "none") {
-      cleanContext = cleanContext.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
-    }
-    parts.push(cleanContext);
-  }
+      const blufSummary = cleanContext || cleanHook;
+      sections.push(`**BOTTOM LINE UP FRONT (BLUF):** ${blufSummary}`);
 
-  // 3. Key Takeaways Section
-  if (parsed.takeaways.length > 0) {
-    const takeawayHeader =
-      style === "executive"
-        ? "Key Strategic Takeaways:"
-        : style === "thought_leadership"
-        ? "Core Insights:"
-        : style === "government"
-        ? "Key Operational Guidelines:"
-        : "Key Takeaways:";
-
-    const formattedBullets = parsed.takeaways.map((t, idx) => {
-      let cleanText = t.replace(/^[•\-\*🔹📌📊⚡💡🤝✅🚀\s]+/, "").trim();
-      if (emojiDensity === "none") {
-        cleanText = cleanText.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
+      if (cleanTakeaways.length > 0) {
+        const bulletList = cleanTakeaways
+          .map((t, idx) => `${getBulletMarker(idx, "executive")} ${t}`)
+          .join("\n");
+        sections.push(
+          `${getSectionHeaderEmoji("takeaway")}**KEY DEVELOPMENTS:**\n${bulletList}`
+        );
       }
-      return `${getBulletMarker(idx)} ${cleanText}`;
-    });
 
-    parts.push(`${takeawayHeader}\n${formattedBullets.join("\n")}`);
-  }
+      if (cleanWhy) {
+        sections.push(
+          `${getSectionHeaderEmoji("impact")}**STRATEGIC IMPLICATION & RISK OUTLOOK:**\n${cleanWhy}`
+        );
+      }
 
-  // 4. Why This Matters / Impact
-  if (parsed.whyItMatters) {
-    let cleanWhy = parsed.whyItMatters;
-    if (emojiDensity === "none") {
-      cleanWhy = cleanWhy.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
+      sections.push(
+        `${getSectionHeaderEmoji("watch")}**DECISION-MAKER ACTION ITEMS:**\n• Monitor implementation milestones across operational units.\n• Evaluate resource allocation and compliance alignment.`
+      );
+
+      sections.push(
+        "What is your executive assessment of these operational priorities?"
+      );
+      break;
     }
 
-    const whyHeader =
-      style === "executive"
-        ? "Strategic Impact:"
-        : style === "thought_leadership"
-        ? "Why This Matters:"
-        : style === "government"
-        ? "Citizen & Sector Impact:"
-        : "Why this matters:";
+    // ==========================================
+    // STYLE 2: THOUGHT LEADER (Insight & Macro Perspective)
+    // ==========================================
+    case "thought_leadership": {
+      sections.push(
+        `${getHookPrefix()}**The most important developments in modern systems are structural, not just incremental.**\n\n${cleanHook}`
+      );
 
-    if (!cleanWhy.toLowerCase().startsWith("why") && !cleanWhy.toLowerCase().startsWith("strategic")) {
-      parts.push(`${whyHeader}\n${cleanWhy}`);
-    } else {
-      parts.push(cleanWhy);
+      if (cleanContext) {
+        sections.push(
+          `${getSectionHeaderEmoji("signals")}**What This Signals:**\n${cleanContext} This reflects a broader shift toward automated verification, direct stakeholder integration, and accountable execution at scale.`
+        );
+      }
+
+      sections.push(
+        `${getSectionHeaderEmoji("picture")}**The Bigger Picture:**\nWhen institutional policy integrates real-time digital infrastructure with field operations, it fundamentally changes industry benchmarks for transparency and response speed.`
+      );
+
+      if (cleanTakeaways.length > 0) {
+        const bulletList = cleanTakeaways
+          .map((t, idx) => `${getBulletMarker(idx, "thought_leadership")} ${t}`)
+          .join("\n");
+        sections.push(
+          `${getSectionHeaderEmoji("watch")}**What Leaders Should Watch:**\n${bulletList}`
+        );
+      }
+
+      if (cleanWhy) {
+        sections.push(
+          `${getSectionHeaderEmoji("impact")}**Strategic Takeaway:**\n${cleanWhy}`
+        );
+      }
+
+      sections.push(
+        "How is your sector preparing for this level of structural transformation? Let's discuss below."
+      );
+      break;
+    }
+
+    // ==========================================
+    // STYLE 3: STORYTELLING (Narrative Progression)
+    // ==========================================
+    case "storytelling": {
+      sections.push(
+        `${getHookPrefix()}**Behind every major milestone is a story of how strategy meets execution on the ground.**\n\n${cleanHook}`
+      );
+
+      if (cleanContext) {
+        sections.push(`**Here's what happened:**\n\n${cleanContext}`);
+      }
+
+      if (cleanTakeaways.length > 0) {
+        const bulletList = cleanTakeaways
+          .map((t, idx) => `${getBulletMarker(idx, "storytelling")} ${t}`)
+          .join("\n");
+        sections.push(
+          `${getSectionHeaderEmoji("shift")}**Then came the operational shift:**\n\nTo move from policy to real-world impact, key mechanisms were put in motion:\n\n${bulletList}`
+        );
+      }
+
+      if (cleanWhy) {
+        sections.push(
+          `${getSectionHeaderEmoji("impact")}**And this is where it becomes truly important:**\n\n${cleanWhy}`
+        );
+      }
+
+      sections.push(
+        "Every successful transformation begins with a clear commitment and compounds through execution.\n\nWhat part of this transformation resonates most with your journey?"
+      );
+      break;
+    }
+
+    // ==========================================
+    // STYLE 4: GOV / PUBLIC (Public Sector & Civic Governance)
+    // ==========================================
+    case "government": {
+      sections.push(
+        `${getSectionHeaderEmoji("gov")}**PUBLIC POLICY & GOVERNANCE BRIEFING**\n\n${cleanHook}`
+      );
+
+      if (cleanContext) {
+        sections.push(`**Executive Summary:**\n${cleanContext}`);
+      }
+
+      if (cleanTakeaways.length > 0) {
+        const bulletList = cleanTakeaways
+          .map((t, idx) => `${getBulletMarker(idx, "government")} ${t}`)
+          .join("\n");
+        sections.push(`**Key Developments & Provisions:**\n${bulletList}`);
+      }
+
+      if (cleanWhy) {
+        sections.push(
+          `**Public & Policy Implications:**\n${cleanWhy} This framework reinforces institutional accountability, standardized delivery, and citizen-centric outcomes.`
+        );
+      }
+
+      sections.push(
+        "**What This Means for Stakeholders:**\nPublic administrators, industry partners, and community stakeholders should review the implementation guidelines and coordinate through regional departmental channels."
+      );
+
+      sections.push(
+        "Please share this briefing with teams and stakeholders implementing these frameworks."
+      );
+      break;
+    }
+
+    // ==========================================
+    // STYLE 1: PROFESSIONAL (Clean Conventional Hierarchy)
+    // ==========================================
+    case "professional":
+    default: {
+      const profHook = cleanHook ? `${getHookPrefix()}${cleanHook}` : "";
+      if (profHook) sections.push(profHook);
+
+      if (cleanContext) {
+        sections.push(cleanContext);
+      }
+
+      if (cleanTakeaways.length > 0) {
+        const bulletList = cleanTakeaways
+          .map((t, idx) => `${getBulletMarker(idx, "professional")} ${t}`)
+          .join("\n");
+        sections.push(`**Key Takeaways:**\n${bulletList}`);
+      }
+
+      if (cleanWhy) {
+        sections.push(`**Why It Matters:**\n${cleanWhy}`);
+      }
+
+      sections.push(
+        "**Next Steps & Implementation:**\nConsistent execution, stakeholder alignment, and transparent feedback loops will be essential to realizing the full potential of this initiative."
+      );
+
+      sections.push(
+        parsed.closingCta ||
+          "What are your key takeaways from these developments?"
+      );
+      break;
     }
   }
 
-  // 5. Closing / CTA
-  if (parsed.closingCta) {
-    let cleanCta = parsed.closingCta;
-    if (emojiDensity === "none") {
-      cleanCta = cleanCta.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
-    }
-    parts.push(cleanCta);
-  } else {
-    // Contextual clean CTA
-    const defaultCta =
-      style === "thought_leadership"
-        ? "What are your thoughts on this approach? Let's discuss below."
-        : style === "executive"
-        ? "How is your organization addressing similar workflow transformations?"
-        : style === "government"
-        ? "Share this update with teams and stakeholders implementing these frameworks."
-        : "What are your key takeaways from these developments?";
-    parts.push(defaultCta);
-  }
-
-  // 6. Hashtags
+  // Deduplicate and format hashtags
   if (parsed.hashtags.length > 0) {
-    // Deduplicate and format
-    const uniqueTags = Array.from(new Set(parsed.hashtags.map((t) => (t.startsWith("#") ? t : `#${t}`))));
-    parts.push(uniqueTags.slice(0, 6).join(" "));
+    const uniqueTags = Array.from(
+      new Set(parsed.hashtags.map((t) => (t.startsWith("#") ? t : `#${t}`)))
+    );
+    sections.push(uniqueTags.slice(0, 6).join(" "));
   } else {
-    parts.push("#Innovation #DigitalTransformation #Leadership #PublicPolicy #Technology");
+    sections.push(
+      "#Innovation #DigitalTransformation #Leadership #PublicPolicy #Technology"
+    );
   }
 
-  return parts.join("\n\n");
+  return sections.join("\n\n");
 }
 
 /**
@@ -279,3 +593,4 @@ export function getLinkedInPostStats(content: string) {
     formattedReadingTime: `${readingTimeSec} sec read`,
   };
 }
+

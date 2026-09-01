@@ -1,7 +1,7 @@
 /**
- * Demo Dataset for TransformAI (SIH 26154)
- * Allows judges and users to explore all platform features (Results, Local Editing,
- * FactMesh™ Grounding, AudienceLens™, Video Workspace, Storyboard, Teleprompter,
+ * Showcase Sample Dataset for TransformAI.
+ * Allows users to explore all platform features (Results, Local Editing,
+ * FactMesh™ Grounding, AudienceLens™, Presentation Viewer, Video Workspace,
  * Consistency Check, Exports) safely with ZERO Gemini API quota consumption.
  */
 

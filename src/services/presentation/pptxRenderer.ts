@@ -16,7 +16,7 @@ export interface PPTXExportResult {
 }
 
 /**
- * Deterministic PowerPoint (.pptx) Generator for TransformAI (SIH 26154).
+ * Deterministic PowerPoint (.pptx) Generator for TransformAI.
  * Generates genuine 16:9 widescreen PowerPoint slides with professional typography,
  * shape geometry, metric callouts, timeline milestones, comparison grids, and presenter notes.
  * 
