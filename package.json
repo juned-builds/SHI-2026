@@ -1,8 +1,24 @@
 {
   "name": "react-example",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
+  "description": "**Gen AI Platform for Automated Content Transformation**",
+  "homepage": "https://github.com/juned-builds/SHI-2026#readme",
+  "bugs": {
+    "url": "https://github.com/juned-builds/SHI-2026/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/juned-builds/SHI-2026.git"
+  },
+  "license": "ISC",
+  "author": "",
   "type": "module",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",

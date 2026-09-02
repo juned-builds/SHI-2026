@@ -1,3 +1,4 @@
+import "dotenv/config";
 import http from "http";
 import express, { Request, Response } from "express";
 import path from "path";
@@ -222,6 +223,7 @@ async function startServer() {
         const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
           : errorObj.code === "VALIDATION_ERROR" ? 400
           : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "PROJECT_ACCESS_DENIED" ? 403
           : errorObj.code === "TIMEOUT_ERROR" ? 504
           : errorObj.retryable ? 503 : 500;
 
@@ -282,6 +284,7 @@ async function startServer() {
         const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
           : errorObj.code === "VALIDATION_ERROR" ? 400
           : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "PROJECT_ACCESS_DENIED" ? 403
           : errorObj.code === "TIMEOUT_ERROR" ? 504
           : errorObj.retryable ? 503 : 500;
 
@@ -346,6 +349,7 @@ async function startServer() {
         const httpStatus = errorObj.code === "QUOTA_EXHAUSTED" ? 429
           : errorObj.code === "VALIDATION_ERROR" ? 400
           : errorObj.code === "INVALID_API_KEY" ? 401
+          : errorObj.code === "PROJECT_ACCESS_DENIED" ? 403
           : errorObj.code === "TIMEOUT_ERROR" ? 504
           : errorObj.retryable ? 503 : 500;
 

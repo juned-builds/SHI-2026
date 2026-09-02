@@ -12,6 +12,7 @@ export type FactMeshErrorCode =
   | "TRANSIENT_SERVER_ERROR"
   | "TIMEOUT_ERROR"
   | "INVALID_API_KEY"
+  | "PROJECT_ACCESS_DENIED"
   | "VALIDATION_ERROR"
   | "PARSE_ERROR"
   | "UNKNOWN_ERROR";
@@ -161,6 +162,21 @@ export function classifyError(err: any, attempts = 1): ClassifiedError {
   }
 
   // 2. API Key / Auth Errors
+  if (
+    status === 403 &&
+    (lowerMsg.includes("project has been denied access") || lowerMsg.includes("permission_denied"))
+  ) {
+    return {
+      code: "PROJECT_ACCESS_DENIED",
+      message: "Google denied access to the project associated with this Gemini API key. Check the project in Google AI Studio or contact Google support.",
+      userMessage: "Google denied access to the project associated with this Gemini API key. Check the project in Google AI Studio or contact Google support.",
+      retryable: false,
+      httpStatus: 403,
+      provider: "gemini",
+      attempts,
+    };
+  }
+
   if (
     lowerMsg.includes("gemini_api_key") ||
     lowerMsg.includes("api key not valid") ||
